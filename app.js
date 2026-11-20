@@ -1,12 +1,17 @@
 let synth;
 
 const startBtn = document.getElementById("startBtn");
+const waveformSelect = document.getElementById("waveform");
 
 startBtn.addEventListener("click", async function () {
 
     await Tone.start();
 
-    synth = new Tone.Synth().toDestination();
+    synth = new Tone.Synth({
+        oscillator: {
+            type: waveformSelect.value
+        }
+    }).toDestination();
 
     console.log("Tone started");
 });
@@ -29,6 +34,7 @@ document.addEventListener("keydown", (event) => {
     const note = notes[event.key.toLowerCase()];
 
     if (note) {
+        synth.oscillator.type = waveformSelect.value;
         synth.triggerAttackRelease(note, "8n");
         console.log(note);
     }
