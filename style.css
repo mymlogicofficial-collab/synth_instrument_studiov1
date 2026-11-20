@@ -11,3 +11,13 @@ button {
     font-size: 18px;
     cursor: pointer;
 }
+
+hr {
+    margin: 25px 0;
+}
+
+select,
+input,
+button {
+    margin: 10px;
+}
