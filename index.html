@@ -11,90 +11,95 @@
 </head>
 <body>
 
-    <h1>Synth Instrument Studio V1</h1>
+    <div id="app">
 
-    <button id="startBtn">Start Audio</button>
+        <h1>Synth Instrument Studio V1</h1>
 
-    <p>
-A C4 |
-S D4 |
-D E4 |
-F F4 |
-G G4 |
-H A4 |
-J B4 |
-K C5
-</p>
+        <button id="startBtn">Start Audio</button>
 
-<label for="waveform">Waveform:</label>
+        <p>
+            A = C4 |
+            S = D4 |
+            D = E4 |
+            F = F4 |
+            G = G4 |
+            H = A4 |
+            J = B4 |
+            K = C5
+        </p>
 
-<select id="waveform">
-    <option value="sine">Sine</option>
-    <option value="square">Square</option>
-    <option value="sawtooth">Sawtooth</option>
-    <option value="triangle">Triangle</option>
-</select>
+        <div class="control">
+            <label for="waveform">Waveform</label>
 
-<br><br>
+            <select id="waveform">
+                <option value="sine">Sine</option>
+                <option value="square">Square</option>
+                <option value="sawtooth">Sawtooth</option>
+                <option value="triangle">Triangle</option>
+            </select>
+        </div>
 
-<label>Attack:</label>
+        <div class="control">
+            <label for="attack">Attack</label>
 
-<input
-    id="attack"
-    type="range"
-    min="0"
-    max="2"
-    step="0.01"
-    value="0.05"
->
+            <input
+                id="attack"
+                type="range"
+                min="0"
+                max="2"
+                step="0.01"
+                value="0.05"
+            >
 
-<span id="attackValue">0.05</span>
+            <span id="attackValue">0.05</span>
+        </div>
 
-<br><br>
+        <div class="control">
+            <label for="decay">Decay</label>
 
-<label>Decay:</label>
+            <input
+                id="decay"
+                type="range"
+                min="0"
+                max="2"
+                step="0.01"
+                value="0.2"
+            >
 
-<input
-    id="decay"
-    type="range"
-    min="0"
-    max="2"
-    step="0.01"
-    value="0.2"
->
+            <span id="decayValue">0.2</span>
+        </div>
 
-<span id="decayValue">0.2</span>
+        <div class="control">
+            <label for="sustain">Sustain</label>
 
-<br><br>
+            <input
+                id="sustain"
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value="0.6"
+            >
 
-<label>Sustain:</label>
+            <span id="sustainValue">0.6</span>
+        </div>
 
-<input
-    id="sustain"
-    type="range"
-    min="0"
-    max="1"
-    step="0.01"
-    value="0.6"
->
+        <div class="control">
+            <label for="release">Release</label>
 
-<span id="sustainValue">0.6</span>
+            <input
+                id="release"
+                type="range"
+                min="0"
+                max="5"
+                step="0.01"
+                value="1"
+            >
 
-<br><br>
+            <span id="releaseValue">1</span>
+        </div>
 
-<label>Release:</label>
-
-<input
-    id="release"
-    type="range"
-    min="0"
-    max="5"
-    step="0.01"
-    value="1"
->
-
-<span id="releaseValue">1</span>
-
+    </div>
 
     <script src="app.js"></script>
 
