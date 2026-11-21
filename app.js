@@ -1,3 +1,6 @@
+const attackSlider = document.getElementById("attack");
+const attackValue = document.getElementById("attackValue");
+
 let synth;
 
 const startBtn = document.getElementById("startBtn");
@@ -12,7 +15,7 @@ startBtn.addEventListener("click", async function () {
         type: waveformSelect.value
     },
     envelope: {
-        attack: 0.05,
+        attack: Number(attackSlider.value),
         decay: 0.2,
         sustain: 0.6,
         release: 1
@@ -44,4 +47,8 @@ document.addEventListener("keydown", (event) => {
         synth.triggerAttackRelease(note, "8n");
         console.log(note);
     }
+});
+
+attackSlider.addEventListener("input", () => {
+    attackValue.textContent = attackSlider.value;
 });
