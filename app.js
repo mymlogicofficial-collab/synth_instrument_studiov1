@@ -7,11 +7,17 @@ startBtn.addEventListener("click", async function () {
 
     await Tone.start();
 
-    synth = new Tone.Synth({
-        oscillator: {
-            type: waveformSelect.value
-        }
-    }).toDestination();
+    synth = new Tone.MonoSynth({
+    oscillator: {
+        type: waveformSelect.value
+    },
+    envelope: {
+        attack: 0.05,
+        decay: 0.2,
+        sustain: 0.6,
+        release: 1
+    }
+}).toDestination();
 
     console.log("Tone started");
 });
