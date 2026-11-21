@@ -6,6 +6,9 @@ let synth;
 const startBtn = document.getElementById("startBtn");
 const waveformSelect = document.getElementById("waveform");
 
+const decaySlider = document.getElementById("decay");
+const decayValue = document.getElementById("decayValue");
+
 startBtn.addEventListener("click", async function () {
 
     await Tone.start();
@@ -16,7 +19,7 @@ startBtn.addEventListener("click", async function () {
     },
     envelope: {
         attack: Number(attackSlider.value),
-        decay: 0.2,
+        decay: Number(decaySlider.value),
         sustain: 0.6,
         release: 1
     }
@@ -51,4 +54,8 @@ document.addEventListener("keydown", (event) => {
 
 attackSlider.addEventListener("input", () => {
     attackValue.textContent = attackSlider.value;
+});
+
+decaySlider.addEventListener("input", () => {
+    decayValue.textContent = decaySlider.value;
 });
