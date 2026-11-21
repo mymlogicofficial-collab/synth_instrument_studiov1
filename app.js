@@ -21,7 +21,6 @@ let synth;
 const activeNotes = new Set();
 
 const keyMap = {
-
     q: "C3",
     2: "C#3",
 
@@ -40,12 +39,14 @@ const keyMap = {
     7: "A#3",
 
     u: "B3"
-
 };
 
-startBtn.addEventListener("click", async () => {
+async function buildSynth() {
 
-    await Tone.start();
+    if (synth) {
+        synth.releaseAll();
+        synth.dispose();
+    }
 
     synth = new Tone.PolySynth(Tone.Synth, {
         oscillator: {
@@ -59,8 +60,31 @@ startBtn.addEventListener("click", async () => {
             release: Number(releaseSlider.value)
         }
     }).toDestination();
+}
+
+startBtn.addEventListener("click", async () => {
+
+    await Tone.start();
+
+    await buildSynth();
 
     console.log("Tone started");
+});
+
+function applyCurrentWaveform() {
+
+    if (!synth) return;
+
+    buildSynth();
+
+    console.log(
+        "WAVEFORM",
+        waveformSelect.value
+    );
+}
+
+waveformSelect.addEventListener("change", () => {
+    applyCurrentWaveform();
 });
 
 function highlightKey(keyName) {
@@ -87,20 +111,34 @@ function unhighlightKey(keyName) {
     }
 }
 
-document.addEventListener("keydown", (event) => {
+function noteOn(note) {
 
     if (!synth) return;
-
-    const key = event.key.toLowerCase();
-    const note = keyMap[key];
-
-    if (!note) return;
 
     if (activeNotes.has(note)) return;
 
     activeNotes.add(note);
 
     synth.triggerAttack(note);
+}
+
+function noteOff(note) {
+
+    if (!synth) return;
+
+    activeNotes.delete(note);
+
+    synth.triggerRelease(note);
+}
+
+document.addEventListener("keydown", (event) => {
+
+    const key = event.key.toLowerCase();
+    const note = keyMap[key];
+
+    if (!note) return;
+
+    noteOn(note);
 
     highlightKey(key);
 
@@ -109,16 +147,12 @@ document.addEventListener("keydown", (event) => {
 
 document.addEventListener("keyup", (event) => {
 
-    if (!synth) return;
-
     const key = event.key.toLowerCase();
     const note = keyMap[key];
 
     if (!note) return;
 
-    activeNotes.delete(note);
-
-    synth.triggerRelease(note);
+    noteOff(note);
 
     unhighlightKey(key);
 
@@ -154,21 +188,26 @@ document.querySelectorAll("[data-key]").forEach(keyElement => {
 
     keyElement.addEventListener("mousedown", () => {
 
-        if (!synth) return;
+        noteOn(note);
 
         highlightKey(physicalKey);
 
-        synth.triggerAttackRelease(
-            note,
-            Number(durationSlider.value)
-        );
+        console.log("MOUSE DOWN", note);
     });
 
     keyElement.addEventListener("mouseup", () => {
+
+        noteOff(note);
+
         unhighlightKey(physicalKey);
+
+        console.log("MOUSE UP", note);
     });
 
     keyElement.addEventListener("mouseleave", () => {
+
+        noteOff(note);
+
         unhighlightKey(physicalKey);
     });
 
@@ -176,18 +215,20 @@ document.querySelectorAll("[data-key]").forEach(keyElement => {
 
         event.preventDefault();
 
-        if (!synth) return;
+        noteOn(note);
 
         highlightKey(physicalKey);
 
-        synth.triggerAttackRelease(
-            note,
-            Number(durationSlider.value)
-        );
+        console.log("TOUCH DOWN", note);
     });
 
     keyElement.addEventListener("touchend", () => {
+
+        noteOff(note);
+
         unhighlightKey(physicalKey);
+
+        console.log("TOUCH UP", note);
     });
 
 });
