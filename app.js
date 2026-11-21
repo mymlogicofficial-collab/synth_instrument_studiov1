@@ -12,6 +12,9 @@ const decayValue = document.getElementById("decayValue");
 const sustainSlider = document.getElementById("sustain");
 const sustainValue = document.getElementById("sustainValue");
 
+const releaseSlider = document.getElementById("release");
+const releaseValue = document.getElementById("releaseValue");
+
 startBtn.addEventListener("click", async function () {
 
     await Tone.start();
@@ -24,7 +27,7 @@ startBtn.addEventListener("click", async function () {
         attack: Number(attackSlider.value),
         decay: Number(decaySlider.value),
         sustain: Number(sustainSlider.value),
-        release: 1
+        release: Number(releaseSlider.value)
     }
 }).toDestination();
 
@@ -65,4 +68,8 @@ decaySlider.addEventListener("input", () => {
 
 sustainSlider.addEventListener("input", () => {
     sustainValue.textContent = sustainSlider.value;
+});
+
+releaseSlider.addEventListener("input", () => {
+    releaseValue.textContent = releaseSlider.value;
 });
