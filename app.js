@@ -15,6 +15,9 @@ const sustainValue = document.getElementById("sustainValue");
 const releaseSlider = document.getElementById("release");
 const releaseValue = document.getElementById("releaseValue");
 
+const durationSlider = document.getElementById("duration");
+const durationValue = document.getElementById("durationValue");
+
 startBtn.addEventListener("click", async function () {
 
     await Tone.start();
@@ -53,7 +56,10 @@ document.addEventListener("keydown", (event) => {
 
     if (note) {
         synth.oscillator.type = waveformSelect.value;
-        synth.triggerAttackRelease(note, "8n");
+        synth.triggerAttackRelease(
+    note,
+    Number(durationSlider.value)
+);
         console.log(note);
     }
 });
@@ -72,4 +78,8 @@ sustainSlider.addEventListener("input", () => {
 
 releaseSlider.addEventListener("input", () => {
     releaseValue.textContent = releaseSlider.value;
+});
+
+durationSlider.addEventListener("input", () => {
+    durationValue.textContent = durationSlider.value;
 });

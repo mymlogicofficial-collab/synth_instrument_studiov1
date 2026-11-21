@@ -13,12 +13,56 @@ body {
 }
 
 #app {
-    text-align: center;
-    width: min(90vw, 1200px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    gap: 12px;
+
+    width: 380px;
+    max-width: 95vw;
 }
 
-input,
-select,
+h1 {
+    margin: 0 0 10px 0;
+    text-align: center;
+}
+
+#keymap {
+    text-align: center;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+}
+
+.control {
+    display: flex;
+    align-items: center;
+
+    width: 100%;
+    gap: 10px;
+}
+
+.control label {
+    width: 80px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.control select {
+    width: 160px;
+}
+
+.control input[type="range"] {
+    width: 160px;
+}
+
+.control span {
+    width: 45px;
+    text-align: left;
+    flex-shrink: 0;
+}
+
 button {
-    margin: 6px;
+    padding: 8px 16px;
+    cursor: pointer;
 }
