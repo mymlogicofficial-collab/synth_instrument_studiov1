@@ -9,6 +9,9 @@ const waveformSelect = document.getElementById("waveform");
 const decaySlider = document.getElementById("decay");
 const decayValue = document.getElementById("decayValue");
 
+const sustainSlider = document.getElementById("sustain");
+const sustainValue = document.getElementById("sustainValue");
+
 startBtn.addEventListener("click", async function () {
 
     await Tone.start();
@@ -20,7 +23,7 @@ startBtn.addEventListener("click", async function () {
     envelope: {
         attack: Number(attackSlider.value),
         decay: Number(decaySlider.value),
-        sustain: 0.6,
+        sustain: Number(sustainSlider.value),
         release: 1
     }
 }).toDestination();
@@ -58,4 +61,8 @@ attackSlider.addEventListener("input", () => {
 
 decaySlider.addEventListener("input", () => {
     decayValue.textContent = decaySlider.value;
+});
+
+sustainSlider.addEventListener("input", () => {
+    sustainValue.textContent = sustainSlider.value;
 });
