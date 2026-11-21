@@ -68,17 +68,12 @@ document.addEventListener("keydown", (event) => {
 
     const note = keyMap[event.key.toLowerCase()];
 
-    if (note) {
+   if (note) {
 
-        synth.oscillator.type = waveformSelect.value;
+    playNote(note);
 
-        synth.triggerAttackRelease(
-            note,
-            Number(durationSlider.value)
-        );
-
-        console.log(note);
-    }
+    console.log(note);
+}
 
     const visualKey = document.querySelector(
         `[data-key="${event.key.toLowerCase()}"]`
@@ -120,4 +115,59 @@ releaseSlider.addEventListener("input", () => {
 
 durationSlider.addEventListener("input", () => {
     durationValue.textContent = durationSlider.value;
+});
+
+function playNote(note) {
+
+    if (!synth) return;
+
+    synth.oscillator.type = waveformSelect.value;
+
+    synth.triggerAttackRelease(
+        note,
+        Number(durationSlider.value)
+    );
+}
+
+document.querySelectorAll("[data-key]").forEach(key => {
+
+    const physicalKey = key.dataset.key;
+    const note = keyMap[physicalKey];
+
+    if (!note) return;
+
+    key.addEventListener("mousedown", () => {
+
+        key.classList.add("active");
+        playNote(note);
+
+    });
+
+    key.addEventListener("mouseup", () => {
+
+        key.classList.remove("active");
+
+    });
+
+    key.addEventListener("mouseleave", () => {
+
+        key.classList.remove("active");
+
+    });
+
+    key.addEventListener("touchstart", (event) => {
+
+        event.preventDefault();
+
+        key.classList.add("active");
+        playNote(note);
+
+    });
+
+    key.addEventListener("touchend", () => {
+
+        key.classList.remove("active");
+
+    });
+
 });
