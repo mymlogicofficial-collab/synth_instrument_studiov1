@@ -184,3 +184,13 @@ button {
 .transport button {
     min-width: 90px;
 }
+
+textarea {
+    width: 170px;
+    resize: vertical;
+}
+
+.control textarea,
+.control input[type="text"] {
+    width: 170px;
+}

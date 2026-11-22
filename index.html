@@ -21,7 +21,49 @@
             <button type="button" id="playBtn">Play</button>
             <button type="button" id="pauseBtn">Pause</button>
             <button type="button" id="stopBtn">Stop</button>
+            <button type="button" id="loadBtn">Load</button>
+            <button type="button" id="importBtn">Import</button>
+
+<input
+    type="file"
+    id="importFile"
+    accept=".json"
+    style="display:none;"
+>
         </div>
+
+        <h2>Project</h2>
+
+<div class="control">
+    <label for="projectName">Name</label>
+    <input
+        id="projectName"
+        type="text"
+        value="Untitled Project"
+    >
+</div>
+
+<div class="control">
+    <label for="projectDescription">Description</label>
+    <textarea
+        id="projectDescription"
+        rows="3"
+    ></textarea>
+</div>
+
+<div class="transport">
+    <button type="button" id="saveBtn">
+        Save
+    </button>
+
+    <button type="button" id="downloadBtn">
+        Download
+    </button>
+
+    <button type="button" id="copyBtn">
+        Copy
+    </button>
+</div>
 
         <div id="keymap">
             Q=C3 &nbsp; 2=C#3<br>

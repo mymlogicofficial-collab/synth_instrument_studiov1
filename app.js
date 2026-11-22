@@ -21,6 +21,27 @@ const playBtn = document.getElementById("playBtn");
 const pauseBtn = document.getElementById("pauseBtn");
 const stopBtn = document.getElementById("stopBtn");
 
+const projectName =
+    document.getElementById("projectName");
+
+const projectDescription =
+    document.getElementById("projectDescription");
+
+const saveBtn =
+    document.getElementById("saveBtn");
+
+const downloadBtn =
+    document.getElementById("downloadBtn");
+
+const copyBtn =
+    document.getElementById("copyBtn");
+
+    const importBtn =
+    document.getElementById("importBtn");
+
+const importFile =
+    document.getElementById("importFile");
+
 let isRecording = false;
 let isPlaying = false;
 let recordingStart = 0;
@@ -102,6 +123,29 @@ waveformSelect.addEventListener("change", () => {
     console.log("WAVEFORM", waveformSelect.value);
 });
 
+function buildProjectData() {
+
+    return {
+
+        name: projectName?.value || "Untitled Project",
+
+        description:
+            projectDescription?.value || "",
+
+        waveform: waveformSelect.value,
+
+        attack: Number(attackSlider.value),
+        decay: Number(decaySlider.value),
+        sustain: Number(sustainSlider.value),
+        release: Number(releaseSlider.value),
+
+        duration: Number(durationSlider.value),
+
+        recordingData: recordingData
+
+    };
+}
+
 function highlightKey(keyName) {
     const visualKey = document.querySelector(`[data-key="${keyName}"]`);
     if (visualKey) {
@@ -124,6 +168,62 @@ function recordEvent(type, note) {
         note: note,
         time: performance.now() - recordingStart
     });
+}
+
+function loadProject(data) {
+
+    projectName.value =
+        data.name || "";
+
+    projectDescription.value =
+        data.description || "";
+
+    waveformSelect.value =
+        data.waveform || "sine";
+
+    attackSlider.value =
+        data.attack ?? 0.05;
+
+    decaySlider.value =
+        data.decay ?? 0.2;
+
+    sustainSlider.value =
+        data.sustain ?? 0.6;
+
+    releaseSlider.value =
+        data.release ?? 1;
+
+    durationSlider.value =
+        data.duration ?? 1;
+
+    attackValue.textContent =
+        attackSlider.value;
+
+    decayValue.textContent =
+        decaySlider.value;
+
+    sustainValue.textContent =
+        sustainSlider.value;
+
+    releaseValue.textContent =
+        releaseSlider.value;
+
+    durationValue.textContent =
+        durationSlider.value;
+
+    recordingData =
+        data.recordingData || [];
+
+    waveformSelect.dispatchEvent(
+        new Event("change")
+    );
+
+    updateEnvelope();
+
+    console.log(
+        "PROJECT LOADED",
+        data.name
+    );
 }
 
 function noteOn(note) {
@@ -215,6 +315,97 @@ recordBtn.addEventListener("click", () => {
     console.log("RECORD ON");
 });
 
+saveBtn?.addEventListener("click", () => {
+
+    const data = buildProjectData();
+
+    localStorage.setItem(
+        "sis-project",
+        JSON.stringify(data)
+    );
+
+    console.log(
+        "PROJECT SAVED",
+        data.name
+    );
+});
+
+importBtn.addEventListener("click", () => {
+
+    importFile.click();
+
+});
+
+importFile.addEventListener("change", (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            loadProject(data);
+        } catch (error) {
+            console.error("Error parsing imported project:", error);
+        }
+    };
+    reader.readAsText(file);
+});
+
+downloadBtn?.addEventListener("click", () => {
+
+    const data = buildProjectData();
+
+    const blob = new Blob(
+        [JSON.stringify(data, null, 2)],
+        {
+            type: "application/json"
+        }
+    );
+
+    const url =
+        URL.createObjectURL(blob);
+
+    const a =
+        document.createElement("a");
+
+    a.href = url;
+
+    a.download =
+        `${data.name || "sis-project"}.json`;
+
+    a.click();
+
+    URL.revokeObjectURL(url);
+
+    console.log(
+        "PROJECT DOWNLOADED",
+        data.name
+    );
+});
+
+copyBtn?.addEventListener(
+    "click",
+    async () => {
+
+        const data =
+            buildProjectData();
+
+        await navigator.clipboard.writeText(
+            JSON.stringify(
+                data,
+                null,
+                2
+            )
+        );
+
+        console.log(
+            "PROJECT COPIED",
+            data.name
+        );
+    }
+);
+
 pauseBtn.addEventListener("click", () => {
     isRecording = false;
     console.log("PAUSE");
@@ -229,6 +420,72 @@ stopBtn.addEventListener("click", () => {
     stopPlayback();
     console.log("STOP");
 });
+
+loadBtn?.addEventListener(
+    "click",
+    () => {
+
+        const saved =
+            localStorage.getItem(
+                "sis-project"
+            );
+
+        if (!saved) {
+            console.log(
+                "NO SAVED PROJECT"
+            );
+            return;
+        }
+
+        loadProject(
+            JSON.parse(saved)
+        );
+
+    }
+);
+
+importFile.addEventListener(
+    "change",
+    (event) => {
+
+        const file =
+            event.target.files[0];
+
+        if (!file) return;
+
+        const reader =
+            new FileReader();
+
+        reader.onload = (e) => {
+
+            try {
+
+                const data =
+                    JSON.parse(
+                        e.target.result
+                    );
+
+                loadProject(data);
+
+                console.log(
+                    "PROJECT IMPORTED",
+                    data.name
+                );
+
+            }
+            catch {
+
+                console.log(
+                    "INVALID PROJECT FILE"
+                );
+            }
+
+        };
+
+        reader.readAsText(file);
+
+    }
+);
 
 playBtn.addEventListener("click", () => {
     if (!synth || recordingData.length === 0 || isPlaying) return;
