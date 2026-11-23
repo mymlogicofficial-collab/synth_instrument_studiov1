@@ -39,6 +39,8 @@ let recordingStart = 0;
 let recordingData = [];
 let playbackTimeouts = [];
 let regionCount = 4;
+let ribbonNotes = [];
+let selectedNote = null;
 
 let synth;
 const activeNotes = new Set();
@@ -228,6 +230,8 @@ function recordEvent(type, note) {
         note: note,
         time: performance.now() - recordingStart
     });
+
+    console.log(recordingData);
 }
 
 function loadProject(data) {
@@ -413,6 +417,30 @@ function renderRibbon() {
     });
 
     playhead.reset();
+}
+
+function buildRibbonNotes() {
+    const notes = [];
+    const active = {};
+
+    recordingData.forEach(event => {
+        if (event.type === "noteOn") {
+            active[event.note] = event.time;
+        }
+
+        if (event.type === "noteOff" && active[event.note] !== undefined) {
+            notes.push({
+                id: crypto.randomUUID(),
+                note: event.note,
+                start: active[event.note],
+                duration: event.time - active[event.note]
+            });
+
+            delete active[event.note];
+        }
+    });
+
+    return notes;
 }
 
 recordBtn.addEventListener("click", () => {
