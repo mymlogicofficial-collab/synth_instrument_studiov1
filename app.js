@@ -20,33 +20,25 @@ const recordBtn = document.getElementById("recordBtn");
 const playBtn = document.getElementById("playBtn");
 const pauseBtn = document.getElementById("pauseBtn");
 const stopBtn = document.getElementById("stopBtn");
+const loadBtn = document.getElementById("loadBtn");
 
-const projectName =
-    document.getElementById("projectName");
+const projectName = document.getElementById("projectName");
+const projectDescription = document.getElementById("projectDescription");
 
-const projectDescription =
-    document.getElementById("projectDescription");
+const saveBtn = document.getElementById("saveBtn");
+const downloadBtn = document.getElementById("downloadBtn");
+const copyBtn = document.getElementById("copyBtn");
+const importBtn = document.getElementById("importBtn");
+const importFile = document.getElementById("importFile");
 
-const saveBtn =
-    document.getElementById("saveBtn");
-
-const downloadBtn =
-    document.getElementById("downloadBtn");
-
-const copyBtn =
-    document.getElementById("copyBtn");
-
-    const importBtn =
-    document.getElementById("importBtn");
-
-const importFile =
-    document.getElementById("importFile");
+const ribbon = document.getElementById("ribbon");
 
 let isRecording = false;
 let isPlaying = false;
 let recordingStart = 0;
 let recordingData = [];
-let playbackTimeouts = []; // Tracks scheduled playback events so Stop works
+let playbackTimeouts = [];
+let regionCount = 4;
 
 let synth;
 const activeNotes = new Set();
@@ -66,10 +58,87 @@ const keyMap = {
     u: "B3"
 };
 
-// Reverse map so playback can highlight the visual keys
 const noteToKeyMap = Object.fromEntries(
     Object.entries(keyMap).map(([k, v]) => [v, k])
 );
+
+const playhead = (() => {
+    let rafId = null;
+    let startPerf = 0;
+    let pausedAtMs = 0;
+    let totalDurationMs = 0;
+    let running = false;
+
+    function ensureEl() {
+        if (!ribbon) return null;
+        let el = ribbon.querySelector("#ribbon-playhead");
+        if (!el) {
+            el = document.createElement("div");
+            el.id = "ribbon-playhead";
+            ribbon.appendChild(el);
+        }
+        return el;
+    }
+
+    function setPosition(ms) {
+        const el = ensureEl();
+        if (!el) return;
+        const pct = totalDurationMs > 0
+            ? Math.min(Math.max((ms / totalDurationMs) * 100, 0), 100)
+            : 0;
+        el.style.left = `${pct}%`;
+    }
+
+    function getMaxRecordingTime() {
+        if (!Array.isArray(recordingData) || recordingData.length === 0) return 0;
+        return Math.max(...recordingData.map(e => e.time || 0));
+    }
+
+    function tick(now) {
+        if (!running) return;
+        const elapsed = pausedAtMs + (now - startPerf);
+        setPosition(elapsed);
+
+        if (totalDurationMs > 0 && elapsed >= totalDurationMs) {
+            stop(true);
+            return;
+        }
+        rafId = requestAnimationFrame(tick);
+    }
+
+    function start(durationMs) {
+        totalDurationMs = durationMs || getMaxRecordingTime();
+        if (totalDurationMs <= 0) return;
+        running = true;
+        startPerf = performance.now();
+        cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(tick);
+    }
+
+    function pause() {
+        if (!running) return;
+        running = false;
+        cancelAnimationFrame(rafId);
+        pausedAtMs += performance.now() - startPerf;
+    }
+
+    function stop(snapToEnd = false) {
+        running = false;
+        cancelAnimationFrame(rafId);
+        pausedAtMs = 0;
+        setPosition(snapToEnd ? totalDurationMs : 0);
+    }
+
+    function reset() {
+        running = false;
+        cancelAnimationFrame(rafId);
+        pausedAtMs = 0;
+        totalDurationMs = getMaxRecordingTime();
+        setPosition(0);
+    }
+
+    return { start, pause, stop, reset, ensureEl };
+})();
 
 async function buildSynth() {
     if (synth) {
@@ -82,15 +151,14 @@ async function buildSynth() {
     synth = new Tone.PolySynth(Tone.Synth).toDestination();
 
     synth.set({
-    oscillator: {
-        type: waveformSelect.value
-    },
-
-    envelope: {
-        attack: Number(attackSlider.value),
-        decay: Number(decaySlider.value),
-        sustain: Number(sustainSlider.value),
-        release: Number(releaseSlider.value)
+        oscillator: {
+            type: waveformSelect.value
+        },
+        envelope: {
+            attack: Number(attackSlider.value),
+            decay: Number(decaySlider.value),
+            sustain: Number(sustainSlider.value),
+            release: Number(releaseSlider.value)
         }
     });
 }
@@ -124,25 +192,17 @@ waveformSelect.addEventListener("change", () => {
 });
 
 function buildProjectData() {
-
     return {
-
         name: projectName?.value || "Untitled Project",
-
-        description:
-            projectDescription?.value || "",
-
+        description: projectDescription?.value || "",
         waveform: waveformSelect.value,
-
         attack: Number(attackSlider.value),
         decay: Number(decaySlider.value),
         sustain: Number(sustainSlider.value),
         release: Number(releaseSlider.value),
-
         duration: Number(durationSlider.value),
-
+        regionCount: regionCount,
         recordingData: recordingData
-
     };
 }
 
@@ -171,59 +231,30 @@ function recordEvent(type, note) {
 }
 
 function loadProject(data) {
+    projectName.value = data.name || "";
+    projectDescription.value = data.description || "";
+    waveformSelect.value = data.waveform || "sine";
 
-    projectName.value =
-        data.name || "";
+    attackSlider.value = data.attack ?? 0.05;
+    decaySlider.value = data.decay ?? 0.2;
+    sustainSlider.value = data.sustain ?? 0.6;
+    releaseSlider.value = data.release ?? 1;
+    durationSlider.value = data.duration ?? 1;
 
-    projectDescription.value =
-        data.description || "";
+    attackValue.textContent = attackSlider.value;
+    decayValue.textContent = decaySlider.value;
+    sustainValue.textContent = sustainSlider.value;
+    releaseValue.textContent = releaseSlider.value;
+    durationValue.textContent = durationSlider.value;
 
-    waveformSelect.value =
-        data.waveform || "sine";
+    regionCount = Math.max(1, Number(data.regionCount) || 4);
+    recordingData = data.recordingData || [];
 
-    attackSlider.value =
-        data.attack ?? 0.05;
-
-    decaySlider.value =
-        data.decay ?? 0.2;
-
-    sustainSlider.value =
-        data.sustain ?? 0.6;
-
-    releaseSlider.value =
-        data.release ?? 1;
-
-    durationSlider.value =
-        data.duration ?? 1;
-
-    attackValue.textContent =
-        attackSlider.value;
-
-    decayValue.textContent =
-        decaySlider.value;
-
-    sustainValue.textContent =
-        sustainSlider.value;
-
-    releaseValue.textContent =
-        releaseSlider.value;
-
-    durationValue.textContent =
-        durationSlider.value;
-
-    recordingData =
-        data.recordingData || [];
-
-    waveformSelect.dispatchEvent(
-        new Event("change")
-    );
-
+    waveformSelect.dispatchEvent(new Event("change"));
     updateEnvelope();
+    renderRibbon();
 
-    console.log(
-        "PROJECT LOADED",
-        data.name
-    );
+    console.log("PROJECT LOADED", data.name);
 }
 
 function noteOn(note) {
@@ -237,16 +268,15 @@ function noteOn(note) {
 
 function noteOff(note) {
     if (!synth) return;
-    if (!activeNotes.has(note)) return; // Prevents duplicate noteOff events
+    if (!activeNotes.has(note)) return;
 
     activeNotes.delete(note);
     recordEvent("noteOff", note);
     synth.triggerRelease(note);
 }
 
-// Keyboard listeners
 document.addEventListener("keydown", (event) => {
-    if (event.repeat) return; // Ignore OS key-repeat events
+    if (event.repeat) return;
 
     const key = event.key.toLowerCase();
     const note = keyMap[key];
@@ -267,7 +297,6 @@ document.addEventListener("keyup", (event) => {
     unhighlightKey(key);
 });
 
-// ADSR & Duration Sliders (now update the synth in real time)
 attackSlider.addEventListener("input", () => {
     attackValue.textContent = attackSlider.value;
     updateEnvelope();
@@ -294,11 +323,11 @@ if (durationSlider && durationValue) {
     });
 }
 
-// Transport Controls
 function stopPlayback() {
     playbackTimeouts.forEach(id => clearTimeout(id));
     playbackTimeouts = [];
     isPlaying = false;
+    playhead.stop(false);
 
     if (synth) {
         synth.releaseAll();
@@ -307,16 +336,95 @@ function stopPlayback() {
     document.querySelectorAll("[data-key]").forEach(el => el.classList.remove("active"));
 }
 
+function getRegionName(index) {
+    let label = "";
+    let n = index;
+    do {
+        label = String.fromCharCode(65 + (n % 26)) + label;
+        n = Math.floor(n / 26) - 1;
+    } while (n >= 0);
+    return label;
+}
+
+function renderRegions(count = regionCount) {
+    if (!ribbon) return;
+    const safeCount = Math.max(1, Number(count) || 1);
+    const widthPct = 100 / safeCount;
+
+    for (let i = 0; i < safeCount; i++) {
+        const seg = document.createElement("div");
+        seg.className = "ribbon-region";
+        seg.dataset.regionIndex = String(i);
+        seg.dataset.regionName = getRegionName(i);
+        seg.style.left = `${i * widthPct}%`;
+        seg.style.width = `${widthPct}%`;
+
+        const tag = document.createElement("span");
+        tag.className = "ribbon-region-label";
+        tag.textContent = getRegionName(i);
+
+        seg.appendChild(tag);
+        ribbon.appendChild(seg);
+    }
+}
+
+function renderRibbon() {
+    if (!ribbon) return;
+
+    ribbon.innerHTML = "";
+    renderRegions(regionCount);
+    playhead.ensureEl();
+
+    if (recordingData.length === 0) {
+        playhead.reset();
+        return;
+    }
+
+    const maxTime = Math.max(
+        ...recordingData.map(e => e.time)
+    );
+
+    const activeNoteStarts = {};
+
+    recordingData.forEach(event => {
+        if (event.type === "noteOn") {
+            activeNoteStarts[event.note] = event.time;
+        }
+
+        if (event.type === "noteOff") {
+            const start = activeNoteStarts[event.note];
+            if (start === undefined) return;
+
+            const block = document.createElement("div");
+            block.className = "ribbon-block";
+
+            const left = (start / maxTime) * 100;
+            const duration = event.time - start;
+            const width = (duration / maxTime) * 100;
+
+            block.style.left = `${left}%`;
+            block.style.width = `${Math.max(width, 0.5)}%`;
+            block.title = `${event.note}`;
+
+            ribbon.appendChild(block);
+
+            delete activeNoteStarts[event.note];
+        }
+    });
+
+    playhead.reset();
+}
+
 recordBtn.addEventListener("click", () => {
     stopPlayback();
     recordingData = [];
+    renderRibbon();
     recordingStart = performance.now();
     isRecording = true;
     console.log("RECORD ON");
 });
 
 saveBtn?.addEventListener("click", () => {
-
     const data = buildProjectData();
 
     localStorage.setItem(
@@ -324,16 +432,11 @@ saveBtn?.addEventListener("click", () => {
         JSON.stringify(data)
     );
 
-    console.log(
-        "PROJECT SAVED",
-        data.name
-    );
+    console.log("PROJECT SAVED", data.name);
 });
 
 importBtn.addEventListener("click", () => {
-
     importFile.click();
-
 });
 
 importFile.addEventListener("change", (event) => {
@@ -353,139 +456,61 @@ importFile.addEventListener("change", (event) => {
 });
 
 downloadBtn?.addEventListener("click", () => {
-
     const data = buildProjectData();
 
     const blob = new Blob(
         [JSON.stringify(data, null, 2)],
-        {
-            type: "application/json"
-        }
+        { type: "application/json" }
     );
 
-    const url =
-        URL.createObjectURL(blob);
-
-    const a =
-        document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
 
     a.href = url;
-
-    a.download =
-        `${data.name || "sis-project"}.json`;
-
+    a.download = `${data.name || "sis-project"}.json`;
     a.click();
 
     URL.revokeObjectURL(url);
 
-    console.log(
-        "PROJECT DOWNLOADED",
-        data.name
-    );
+    console.log("PROJECT DOWNLOADED", data.name);
 });
 
-copyBtn?.addEventListener(
-    "click",
-    async () => {
+copyBtn?.addEventListener("click", async () => {
+    const data = buildProjectData();
 
-        const data =
-            buildProjectData();
+    await navigator.clipboard.writeText(
+        JSON.stringify(data, null, 2)
+    );
 
-        await navigator.clipboard.writeText(
-            JSON.stringify(
-                data,
-                null,
-                2
-            )
-        );
-
-        console.log(
-            "PROJECT COPIED",
-            data.name
-        );
-    }
-);
+    console.log("PROJECT COPIED", data.name);
+});
 
 pauseBtn.addEventListener("click", () => {
     isRecording = false;
+    playhead.pause();
     console.log("PAUSE");
 });
 
 stopBtn.addEventListener("click", () => {
-    // Close out any notes currently held down when stopping a recording
     if (isRecording) {
         activeNotes.forEach(note => recordEvent("noteOff", note));
         isRecording = false;
     }
     stopPlayback();
+    renderRibbon();
     console.log("STOP");
 });
 
-loadBtn?.addEventListener(
-    "click",
-    () => {
+loadBtn?.addEventListener("click", () => {
+    const saved = localStorage.getItem("sis-project");
 
-        const saved =
-            localStorage.getItem(
-                "sis-project"
-            );
-
-        if (!saved) {
-            console.log(
-                "NO SAVED PROJECT"
-            );
-            return;
-        }
-
-        loadProject(
-            JSON.parse(saved)
-        );
-
+    if (!saved) {
+        console.log("NO SAVED PROJECT");
+        return;
     }
-);
 
-importFile.addEventListener(
-    "change",
-    (event) => {
-
-        const file =
-            event.target.files[0];
-
-        if (!file) return;
-
-        const reader =
-            new FileReader();
-
-        reader.onload = (e) => {
-
-            try {
-
-                const data =
-                    JSON.parse(
-                        e.target.result
-                    );
-
-                loadProject(data);
-
-                console.log(
-                    "PROJECT IMPORTED",
-                    data.name
-                );
-
-            }
-            catch {
-
-                console.log(
-                    "INVALID PROJECT FILE"
-                );
-            }
-
-        };
-
-        reader.readAsText(file);
-
-    }
-);
+    loadProject(JSON.parse(saved));
+});
 
 playBtn.addEventListener("click", () => {
     if (!synth || recordingData.length === 0 || isPlaying) return;
@@ -493,6 +518,9 @@ playBtn.addEventListener("click", () => {
     isRecording = false;
     isPlaying = true;
     console.log("PLAY");
+
+    const maxTime = Math.max(...recordingData.map(e => e.time || 0));
+    playhead.start(maxTime);
 
     recordingData.forEach((event, index) => {
         const timeoutId = setTimeout(() => {
@@ -506,9 +534,9 @@ playBtn.addEventListener("click", () => {
                 if (keyName) unhighlightKey(keyName);
             }
 
-            // Reset playing state after the final event
             if (index === recordingData.length - 1) {
                 isPlaying = false;
+                playhead.stop(true);
             }
         }, event.time);
 
@@ -516,7 +544,6 @@ playBtn.addEventListener("click", () => {
     });
 });
 
-// Mouse & Touch listeners for on-screen keys
 document.querySelectorAll("[data-key]").forEach(keyElement => {
     const physicalKey = keyElement.dataset.key;
     const note = keyMap[physicalKey];
