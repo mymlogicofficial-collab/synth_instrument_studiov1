@@ -21,6 +21,8 @@ const playBtn = document.getElementById("playBtn");
 const pauseBtn = document.getElementById("pauseBtn");
 const stopBtn = document.getElementById("stopBtn");
 const loadBtn = document.getElementById("loadBtn");
+const undoBtn = document.getElementById("undoBtn");
+const redoBtn = document.getElementById("redoBtn");
 
 const projectName = document.getElementById("projectName");
 const projectDescription = document.getElementById("projectDescription");
@@ -76,6 +78,29 @@ let beatUnit = DEFAULT_BEAT_UNIT;
 let tracks = createDefaultTracks();
 let cellMemories = createEmptyCellMemories();
 let selectedCellMemoryId = cellMemories[0].id;
+let mixerState = createDefaultMixerState(tracks);
+let mixerVersionStore = {
+    activeVersion: null,
+    isDirty: false,
+    versions: {},
+    autoTriggers: []
+};
+let mixerBaselineSnapshot = cloneState(mixerState);
+let instrumentSettings = {
+    id: "instrument_1",
+    trackId: DEFAULT_TRACK_ID,
+    waveform: waveformSelect.value,
+    attack: Number(attackSlider.value),
+    decay: Number(decaySlider.value),
+    sustain: Number(sustainSlider.value),
+    release: Number(releaseSlider.value),
+    duration: durationSlider ? Number(durationSlider.value) : 1
+};
+let fxChains = [];
+let undoStack = [];
+let redoStack = [];
+let pendingInstrumentTransaction = null;
+let recordingHistoryBefore = null;
 let timelineSelectionIds = new Set();
 let timelineSelectionAnchorTick = null;
 
@@ -198,30 +223,80 @@ async function buildSynth() {
     activeNotes.clear();
 
     synth = new Tone.PolySynth(Tone.Synth).toDestination();
-
-    synth.set({
-        oscillator: {
-            type: waveformSelect.value
-        },
-        envelope: {
-            attack: Number(attackSlider.value),
-            decay: Number(decaySlider.value),
-            sustain: Number(sustainSlider.value),
-            release: Number(releaseSlider.value)
-        }
-    });
+    applyInstrumentSettingsToSynth();
 }
 
 function updateEnvelope() {
     if (!synth) return;
     synth.set({
         envelope: {
-            attack: Number(attackSlider.value),
-            decay: Number(decaySlider.value),
-            sustain: Number(sustainSlider.value),
-            release: Number(releaseSlider.value)
+            attack: instrumentSettings.attack,
+            decay: instrumentSettings.decay,
+            sustain: instrumentSettings.sustain,
+            release: instrumentSettings.release
         }
     });
+}
+
+function applyInstrumentSettingsToSynth() {
+    if (!synth) return;
+    synth.set({
+        oscillator: { type: instrumentSettings.waveform },
+        envelope: {
+            attack: instrumentSettings.attack,
+            decay: instrumentSettings.decay,
+            sustain: instrumentSettings.sustain,
+            release: instrumentSettings.release
+        }
+    });
+    applyMasterVolume();
+}
+
+function syncInstrumentSettingsFromControls() {
+    instrumentSettings = {
+        ...instrumentSettings,
+        waveform: waveformSelect.value,
+        attack: Number(attackSlider.value),
+        decay: Number(decaySlider.value),
+        sustain: Number(sustainSlider.value),
+        release: Number(releaseSlider.value),
+        duration: durationSlider ? Number(durationSlider.value) : 1
+    };
+}
+
+function beginInstrumentEdit() {
+    if (!pendingInstrumentTransaction) {
+        pendingInstrumentTransaction = beginCompositionTransaction();
+    }
+}
+
+function updateInstrumentControls() {
+    waveformSelect.value = instrumentSettings.waveform;
+    attackSlider.value = String(instrumentSettings.attack);
+    decaySlider.value = String(instrumentSettings.decay);
+    sustainSlider.value = String(instrumentSettings.sustain);
+    releaseSlider.value = String(instrumentSettings.release);
+    if (durationSlider) durationSlider.value = String(instrumentSettings.duration);
+    attackValue.textContent = attackSlider.value;
+    decayValue.textContent = decaySlider.value;
+    sustainValue.textContent = sustainSlider.value;
+    releaseValue.textContent = releaseSlider.value;
+    if (durationValue) durationValue.textContent = durationSlider?.value || "1";
+}
+
+function finishInstrumentEdit() {
+    if (!pendingInstrumentTransaction) {
+        pendingInstrumentTransaction = beginCompositionTransaction();
+    }
+    syncInstrumentSettingsFromControls();
+    updateEnvelope();
+    applyInstrumentSettingsToSynth();
+    recordCompositionTransaction(
+        "CHANGE_INSTRUMENT",
+        "Change Instrument",
+        pendingInstrumentTransaction
+    );
+    pendingInstrumentTransaction = null;
 }
 
 startBtn.addEventListener("click", async () => {
@@ -231,43 +306,24 @@ startBtn.addEventListener("click", async () => {
 });
 
 waveformSelect.addEventListener("change", () => {
-    if (!synth) return;
-    synth.set({
-        oscillator: {
-            type: waveformSelect.value
-        }
-    });
+    finishRecording();
+    const before = pendingInstrumentTransaction || getCompositionSnapshot();
+    pendingInstrumentTransaction = null;
+    syncInstrumentSettingsFromControls();
+    applyInstrumentSettingsToSynth();
+    recordCompositionTransaction("CHANGE_INSTRUMENT", "Change Instrument", before);
     console.log("WAVEFORM", waveformSelect.value);
 });
 
 function buildProjectData() {
+    const savedMixerVersionStore = cloneState(mixerVersionStore);
+    savedMixerVersionStore.isDirty = false;
     return {
         name: projectName?.value || "Untitled Project",
         description: projectDescription?.value || "",
-        waveform: waveformSelect.value,
-        attack: Number(attackSlider.value),
-        decay: Number(decaySlider.value),
-        sustain: Number(sustainSlider.value),
-        release: Number(releaseSlider.value),
-        duration: durationSlider ? Number(durationSlider.value) : 1,
-        regionCount: regionCount,
-        timing: {
-            tempoBpm: tempoBpm,
-            beatsPerBar: beatsPerBar,
-            beatUnit: beatUnit,
-            ticksPerQuarter: SIS_TICKS_PER_QUARTER
-        },
-        timeline: {
-            duration: ticksToMilliseconds(getTimelineLengthTicks()) / 1000,
-            tracks: tracks.map(track => track.id)
-        },
-        tracks: tracks.map(track => ({ ...track, events: [...track.events] })),
-        timelineEvents: recordingData.map(event => ({ ...event })),
-        cellMemories: cellMemories.map(cell => ({
-            ...cell,
-            events: cell.events.map(event => ({ ...event }))
-        })),
-        selectedCellMemoryId: selectedCellMemoryId
+        composition: getCompositionSnapshot(),
+        mixerState: cloneState(mixerState),
+        mixerVersionStore: savedMixerVersionStore
     };
 }
 
@@ -279,10 +335,319 @@ function createDefaultTracks() {
     return [{
         id: DEFAULT_TRACK_ID,
         name: DEFAULT_TRACK_NAME,
-        muted: false,
-        solo: false,
         events: []
     }];
+}
+
+function defaultTrackMixerSettings(trackId) {
+    const isPrimaryTrack = trackId === DEFAULT_TRACK_ID;
+    return {
+        volume: isPrimaryTrack ? 0.62 : 0.77,
+        pan: isPrimaryTrack ? -0.2 : 0.1,
+        mute: false,
+        solo: false
+    };
+}
+
+function createDefaultMixerState(trackList = tracks) {
+    return {
+        master: { volume: 0.85 },
+        tracks: Object.fromEntries(trackList.map(track => [
+            track.id,
+            defaultTrackMixerSettings(track.id)
+        ]))
+    };
+}
+
+function cloneState(value) {
+    return JSON.parse(JSON.stringify(value));
+}
+
+function normalizeMixerState(savedState, trackList, legacyTracks = []) {
+    const savedTracks = savedState?.tracks && typeof savedState.tracks === "object"
+        ? savedState.tracks
+        : {};
+    const legacyTrackMap = new Map(
+        legacyTracks
+            .filter(track => track && typeof track === "object" && track.id)
+            .map(track => [String(track.id), track])
+    );
+    const normalizedTracks = {};
+
+    Object.entries(savedTracks).forEach(([trackId, settings]) => {
+        normalizedTracks[trackId] = {
+            ...defaultTrackMixerSettings(trackId),
+            ...(settings && typeof settings === "object" ? settings : {}),
+            volume: clampMixerValue(settings?.volume, 0, 1, 0.77),
+            pan: clampMixerValue(settings?.pan, -1, 1, 0.1),
+            mute: settings?.mute === true,
+            solo: settings?.solo === true
+        };
+    });
+
+    trackList.forEach(track => {
+        const saved = savedTracks[track.id] || {};
+        const legacy = legacyTrackMap.get(track.id) || {};
+        const defaults = defaultTrackMixerSettings(track.id);
+        normalizedTracks[track.id] = {
+            ...defaults,
+            ...(saved && typeof saved === "object" ? saved : {}),
+            volume: clampMixerValue(saved.volume, 0, 1, defaults.volume),
+            pan: clampMixerValue(saved.pan, -1, 1, defaults.pan),
+            mute: saved.mute === undefined ? legacy.muted === true : saved.mute === true,
+            solo: saved.solo === undefined ? legacy.solo === true : saved.solo === true
+        };
+    });
+
+    const savedMaster = savedState?.master && typeof savedState.master === "object"
+        ? savedState.master
+        : {};
+    return {
+        master: {
+            ...savedMaster,
+            volume: clampMixerValue(
+                savedMaster.volume ?? savedState?.masterVolume,
+                0,
+                1,
+                0.85
+            )
+        },
+        tracks: normalizedTracks
+    };
+}
+
+function clampMixerValue(value, minimum, maximum, fallback) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return fallback;
+    return Math.min(maximum, Math.max(minimum, numericValue));
+}
+
+function deepFreeze(value) {
+    if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+    Object.freeze(value);
+    Object.values(value).forEach(deepFreeze);
+    return value;
+}
+
+function normalizeMixerVersionStore(savedStore) {
+    const savedVersions = savedStore?.versions && typeof savedStore.versions === "object"
+        ? savedStore.versions
+        : {};
+    const versions = {};
+
+    Object.entries(savedVersions).forEach(([versionId, savedVersion]) => {
+        if (!savedVersion || typeof savedVersion !== "object" || !savedVersion.snapshot) return;
+        const id = String(savedVersion.id || versionId);
+        const snapshot = normalizeMixerState(savedVersion.snapshot, []);
+        versions[id] = {
+            id,
+            name: String(savedVersion.name || id),
+            description: String(savedVersion.description || ""),
+            createdAt: Number.isFinite(Number(savedVersion.createdAt))
+                ? Number(savedVersion.createdAt)
+                : 0,
+            snapshot: deepFreeze(snapshot)
+        };
+    });
+
+    const activeVersion = versions[savedStore?.activeVersion]
+        ? String(savedStore.activeVersion)
+        : null;
+    const validTriggers = ["PROJECT_SAVE", "EXPORT_AUDIO", "EXPORT_STEMS"];
+    const autoTriggers = Array.isArray(savedStore?.autoTriggers)
+        ? [...new Set(savedStore.autoTriggers.filter(trigger => validTriggers.includes(trigger)))]
+        : [];
+    return {
+        activeVersion,
+        isDirty: savedStore?.isDirty === true,
+        versions,
+        autoTriggers
+    };
+}
+
+function markMixerDirty() {
+    mixerVersionStore.isDirty = !mixerBaselineSnapshot
+        || JSON.stringify(mixerState) !== JSON.stringify(mixerBaselineSnapshot);
+}
+
+function markMixerSaved() {
+    mixerBaselineSnapshot = cloneState(mixerState);
+    mixerVersionStore.isDirty = false;
+}
+
+function createMixerVersionFromSnapshot(name, description, snapshot) {
+    const usedIds = Object.keys(mixerVersionStore.versions)
+        .map(id => Number(id.match(/^mix_(\d+)$/)?.[1]))
+        .filter(Number.isInteger);
+    let nextNumber = Math.max(0, ...usedIds) + 1;
+    let id = `mix_${String(nextNumber).padStart(3, "0")}`;
+    while (mixerVersionStore.versions[id]) {
+        nextNumber += 1;
+        id = `mix_${String(nextNumber).padStart(3, "0")}`;
+    }
+
+    const version = {
+        id,
+        name: String(name).trim(),
+        description: String(description || ""),
+        createdAt: Date.now(),
+        snapshot: deepFreeze(cloneState(snapshot))
+    };
+    mixerVersionStore.versions = {
+        ...mixerVersionStore.versions,
+        [id]: version
+    };
+    return { id };
+}
+
+function createMixerVersion(name, description = "") {
+    if (name && typeof name === "object") {
+        if (name.auto !== true) {
+            throw new TypeError("Mixer auto-version configuration must set auto to true.");
+        }
+        const trigger = String(name.trigger || "");
+        const validTriggers = ["PROJECT_SAVE", "EXPORT_AUDIO", "EXPORT_STEMS", "MANUAL_ONLY"];
+        if (!validTriggers.includes(trigger)) {
+            throw new RangeError("Choose a supported mixer auto-version trigger.");
+        }
+        mixerVersionStore.autoTriggers = trigger === "MANUAL_ONLY"
+            ? []
+            : [...new Set([...mixerVersionStore.autoTriggers, trigger])];
+        return { enabled: trigger !== "MANUAL_ONLY", trigger };
+    }
+
+    const versionName = String(name || "").trim();
+    if (!versionName) throw new TypeError("Mixer version name cannot be empty.");
+    return createMixerVersionFromSnapshot(versionName, description, mixerState);
+}
+
+function captureMixerVersionForTrigger(trigger) {
+    if (!mixerVersionStore.autoTriggers.includes(trigger)) return null;
+    const timestamp = new Date().toISOString();
+    return createMixerVersionFromSnapshot(
+        `Auto ${trigger} ${timestamp}`,
+        `Automatically captured on ${trigger}.`,
+        mixerState
+    );
+}
+
+function updateMixerVersionMeta(versionId, updates) {
+    const version = mixerVersionStore.versions[String(versionId)];
+    if (!version || !updates || typeof updates !== "object") return false;
+    const next = { ...version };
+    if (updates.name !== undefined) {
+        const name = String(updates.name).trim();
+        if (!name) throw new TypeError("Mixer version name cannot be empty.");
+        next.name = name;
+    }
+    if (updates.description !== undefined) {
+        next.description = String(updates.description);
+    }
+    mixerVersionStore.versions = {
+        ...mixerVersionStore.versions,
+        [version.id]: next
+    };
+    return true;
+}
+
+function loadMixerVersion(versionId) {
+    const version = mixerVersionStore.versions[String(versionId)];
+    if (!version) throw new RangeError(`Mixer version "${versionId}" was not found.`);
+    mixerState = normalizeMixerState(cloneState(version.snapshot), tracks);
+    mixerVersionStore.activeVersion = version.id;
+    mixerBaselineSnapshot = cloneState(mixerState);
+    mixerVersionStore.isDirty = false;
+    applyMasterVolume();
+    return true;
+}
+
+function deleteMixerVersion(versionId) {
+    const id = String(versionId);
+    if (!mixerVersionStore.versions[id]) return false;
+    const versions = { ...mixerVersionStore.versions };
+    delete versions[id];
+    mixerVersionStore.versions = versions;
+    if (mixerVersionStore.activeVersion === id) {
+        mixerVersionStore.activeVersion = null;
+    }
+    markMixerDirty();
+    return true;
+}
+
+function duplicateMixerVersion(sourceVersionId, newName) {
+    const source = mixerVersionStore.versions[String(sourceVersionId)];
+    if (!source) throw new RangeError(`Mixer version "${sourceVersionId}" was not found.`);
+    const name = String(newName || "").trim();
+    if (!name) throw new TypeError("Duplicate mixer version name cannot be empty.");
+    return createMixerVersionFromSnapshot(name, source.description, source.snapshot);
+}
+
+function renameMixerVersion(versionId, newName) {
+    return updateMixerVersionMeta(versionId, { name: newName });
+}
+
+function getMixerVersion(versionId) {
+    const version = mixerVersionStore.versions[String(versionId)];
+    return version
+        ? {
+            metadata: {
+                id: version.id,
+                name: version.name,
+                description: version.description,
+                createdAt: version.createdAt
+            },
+            snapshot: cloneState(version.snapshot)
+        }
+        : null;
+}
+
+function listMixerVersions() {
+    return Object.values(mixerVersionStore.versions)
+        .map(version => ({ id: version.id, name: version.name }));
+}
+
+function compareMixerVersions(versionA, versionB) {
+    const first = mixerVersionStore.versions[String(versionA)];
+    const second = mixerVersionStore.versions[String(versionB)];
+    if (!first || !second) {
+        throw new RangeError("Both mixer versions must exist before comparing.");
+    }
+
+    const diffState = (firstState, secondState) => {
+        const changes = {};
+        const keys = new Set([
+            ...Object.keys(firstState || {}),
+            ...Object.keys(secondState || {})
+        ]);
+        keys.forEach(key => {
+            const from = firstState?.[key];
+            const to = secondState?.[key];
+            if (JSON.stringify(from) !== JSON.stringify(to)) {
+                changes[key] = {
+                    from: from === undefined ? null : cloneState(from),
+                    to: to === undefined ? null : cloneState(to)
+                };
+            }
+        });
+        return changes;
+    };
+
+    const firstTracks = first.snapshot.tracks || {};
+    const secondTracks = second.snapshot.tracks || {};
+    const changedTracks = [...new Set([
+        ...Object.keys(firstTracks),
+        ...Object.keys(secondTracks)
+    ])]
+        .map(trackId => ({
+            trackId,
+            ...diffState(firstTracks[trackId], secondTracks[trackId])
+        }))
+        .filter(track => Object.keys(track).length > 1);
+
+    return {
+        changedMaster: diffState(first.snapshot.master, second.snapshot.master),
+        changedTracks
+    };
 }
 
 function createEmptyCellMemories() {
@@ -348,19 +713,19 @@ function makeTimelineEvent(rawEvent, startTick, durationTicks) {
         velocity: Number.isFinite(Number(rawEvent.velocity))
             ? Number(rawEvent.velocity)
             : 1,
-        waveform: String(rawEvent.waveform || waveformSelect.value),
+        waveform: String(rawEvent.waveform || instrumentSettings.waveform),
         attack: Number.isFinite(Number(rawEvent.attack))
             ? Number(rawEvent.attack)
-            : Number(attackSlider.value),
+            : instrumentSettings.attack,
         decay: Number.isFinite(Number(rawEvent.decay))
             ? Number(rawEvent.decay)
-            : Number(decaySlider.value),
+            : instrumentSettings.decay,
         sustain: Number.isFinite(Number(rawEvent.sustain))
             ? Number(rawEvent.sustain)
-            : Number(sustainSlider.value),
+            : instrumentSettings.sustain,
         release: Number.isFinite(Number(rawEvent.release))
             ? Number(rawEvent.release)
-            : Number(releaseSlider.value)
+            : instrumentSettings.release
     };
 }
 
@@ -505,8 +870,6 @@ function normalizeTracks(savedTracks, timelineEvents) {
             knownTracks.set(String(trackId), {
                 id: String(trackId),
                 name: String(typeof track === "string" ? track : track.name || trackId),
-                muted: Boolean(typeof track === "string" ? false : track.muted),
-                solo: Boolean(typeof track === "string" ? false : track.solo),
                 events: []
             });
         });
@@ -519,8 +882,6 @@ function normalizeTracks(savedTracks, timelineEvents) {
             knownTracks.set(event.trackId, {
                 id: event.trackId,
                 name: event.trackId,
-                muted: false,
-                solo: false,
                 events: []
             });
         }
@@ -534,6 +895,299 @@ function rebuildTrackEventRefs() {
             .filter(event => event.trackId === track.id)
             .map(event => event.id);
     });
+}
+
+function getCompositionSnapshot() {
+    return {
+        tracks: tracks.map(track => ({
+            id: track.id,
+            name: track.name,
+            events: [...track.events]
+        })),
+        events: recordingData.map(event => ({ ...event })),
+        cells: cellMemories.map(cell => ({
+            ...cell,
+            events: cell.events.map(event => ({ ...event }))
+        })),
+        instruments: [{ ...instrumentSettings }],
+        fxChains: cloneState(fxChains),
+        tempo: tempoBpm,
+        timing: {
+            beatsPerBar,
+            beatUnit,
+            ticksPerQuarter: SIS_TICKS_PER_QUARTER
+        },
+        timeline: {
+            duration: ticksToMilliseconds(getTimelineLengthTicks()) / 1000,
+            tracks: tracks.map(track => track.id),
+            regionCount
+        }
+    };
+}
+
+function updateHistoryControls() {
+    if (undoBtn) undoBtn.disabled = undoStack.length === 0;
+    if (redoBtn) redoBtn.disabled = redoStack.length === 0;
+    if (undoBtn) undoBtn.textContent = undoStack.length
+        ? `Undo ${undoStack[undoStack.length - 1].label}`
+        : "Undo";
+    if (redoBtn) redoBtn.textContent = redoStack.length
+        ? `Redo ${redoStack[redoStack.length - 1].label}`
+        : "Redo";
+    if (undoBtn) undoBtn.title = undoStack.length
+        ? `Undo ${undoStack[undoStack.length - 1].label}`
+        : "Nothing to undo";
+    if (redoBtn) redoBtn.title = redoStack.length
+        ? `Redo ${redoStack[redoStack.length - 1].label}`
+        : "Nothing to redo";
+}
+
+function beginCompositionTransaction() {
+    finishRecording();
+    if (pendingInstrumentTransaction) finishInstrumentEdit();
+    return getCompositionSnapshot();
+}
+
+function recordCompositionTransaction(type, label, before) {
+    const after = getCompositionSnapshot();
+    if (JSON.stringify(before) === JSON.stringify(after)) return false;
+    undoStack.push({ type, label, before, after });
+    redoStack = [];
+    updateHistoryControls();
+    return true;
+}
+
+function restoreCompositionSnapshot(snapshot) {
+    tempoBpm = Number(snapshot.tempo) > 0 ? Number(snapshot.tempo) : DEFAULT_TEMPO_BPM;
+    beatsPerBar = Number.isInteger(snapshot.timing?.beatsPerBar) && snapshot.timing.beatsPerBar > 0
+        ? snapshot.timing.beatsPerBar
+        : DEFAULT_BEATS_PER_BAR;
+    beatUnit = Number.isInteger(snapshot.timing?.beatUnit) && snapshot.timing.beatUnit > 0
+        ? snapshot.timing.beatUnit
+        : DEFAULT_BEAT_UNIT;
+    regionCount = Math.max(1, Number(snapshot.timeline?.regionCount) || 4);
+    timelineDurationTicks = secondsToTicks(snapshot.timeline?.duration || 0);
+    recordingData = normalizeTimelineEvents(snapshot.events || []);
+    tracks = normalizeTracks(snapshot.tracks, recordingData);
+    cellMemories = normalizeCellMemories(snapshot.cells);
+    instrumentSettings = {
+        ...instrumentSettings,
+        ...(snapshot.instruments?.[0] || {})
+    };
+    fxChains = cloneState(snapshot.fxChains || []);
+    if (!cellMemories.some(cell => cell.id === selectedCellMemoryId)) {
+        selectedCellMemoryId = cellMemories[0].id;
+    }
+    timelineSelectionIds.clear();
+    timelineSelectionAnchorTick = null;
+    rebuildTrackEventRefs();
+    updateInstrumentControls();
+    applyInstrumentSettingsToSynth();
+    updateCellTransferControls();
+    renderCellMemoryBank();
+    renderRibbon();
+    updateHistoryControls();
+}
+
+function undoComposition() {
+    if (pendingInstrumentTransaction) finishInstrumentEdit();
+    finishRecording();
+    const transaction = undoStack.pop();
+    if (!transaction) return false;
+    restoreCompositionSnapshot(transaction.before);
+    redoStack.push(transaction);
+    updateHistoryControls();
+    return true;
+}
+
+function redoComposition() {
+    if (pendingInstrumentTransaction) finishInstrumentEdit();
+    finishRecording();
+    const transaction = redoStack.pop();
+    if (!transaction) return false;
+    restoreCompositionSnapshot(transaction.after);
+    undoStack.push(transaction);
+    updateHistoryControls();
+    return true;
+}
+
+function applyMasterVolume() {
+    if (!synth?.volume) return;
+    const volume = mixerState.master.volume;
+    synth.volume.value = volume === 0 ? -Infinity : 20 * Math.log10(volume);
+}
+
+function setMasterVolume(volume) {
+    if (!Number.isFinite(Number(volume)) || Number(volume) < 0 || Number(volume) > 1) {
+        throw new RangeError("Master volume must be between 0 and 1.");
+    }
+    mixerState.master.volume = Number(volume);
+    applyMasterVolume();
+    markMixerDirty();
+}
+
+function setTrackMixerState(trackId, updates) {
+    const track = tracks.find(candidate => candidate.id === String(trackId));
+    if (!track || !updates || typeof updates !== "object") {
+        throw new TypeError("Provide a valid track and mixer update.");
+    }
+    const current = mixerState.tracks[track.id] || defaultTrackMixerSettings(track.id);
+    const next = { ...current };
+    if (updates.volume !== undefined) {
+        if (!Number.isFinite(Number(updates.volume)) || updates.volume < 0 || updates.volume > 1) {
+            throw new RangeError("Track volume must be between 0 and 1.");
+        }
+        next.volume = Number(updates.volume);
+    }
+    if (updates.pan !== undefined) {
+        if (!Number.isFinite(Number(updates.pan)) || updates.pan < -1 || updates.pan > 1) {
+            throw new RangeError("Track pan must be between -1 and 1.");
+        }
+        next.pan = Number(updates.pan);
+    }
+    if (updates.mute !== undefined) {
+        if (typeof updates.mute !== "boolean") {
+            throw new TypeError("Track mute must be a boolean.");
+        }
+        next.mute = updates.mute;
+    }
+    if (updates.solo !== undefined) {
+        if (typeof updates.solo !== "boolean") {
+            throw new TypeError("Track solo must be a boolean.");
+        }
+        next.solo = updates.solo;
+    }
+    mixerState.tracks[track.id] = next;
+    markMixerDirty();
+}
+
+function setTrackVolume(trackId, volume) {
+    setTrackMixerState(trackId, { volume });
+}
+
+function setTrackPan(trackId, pan) {
+    setTrackMixerState(trackId, { pan });
+}
+
+function setTrackMuted(trackId, mute) {
+    setTrackMixerState(trackId, { mute });
+}
+
+function setTrackSolo(trackId, solo) {
+    setTrackMixerState(trackId, { solo });
+}
+
+function createTrack(name) {
+    const before = beginCompositionTransaction();
+    const usedNumbers = tracks
+        .map(track => Number(track.id.match(/^track_(\d+)$/)?.[1]))
+        .filter(Number.isInteger);
+    const trackId = `track_${Math.max(0, ...usedNumbers) + 1}`;
+    const trackName = String(name || "").trim() || `Track ${tracks.length + 1}`;
+    tracks.push({
+        id: trackId,
+        name: trackName,
+        events: []
+    });
+    mixerState.tracks[trackId] = defaultTrackMixerSettings(trackId);
+    markMixerDirty();
+    rebuildTrackEventRefs();
+    recordCompositionTransaction("CREATE_TRACK", "Create Track", before);
+    return trackId;
+}
+
+function deleteTrack(trackId) {
+    if (!tracks.some(track => track.id === String(trackId)) || tracks.length <= 1) {
+        return false;
+    }
+    const before = beginCompositionTransaction();
+    tracks = tracks.filter(track => track.id !== String(trackId));
+    recordingData = recordingData.filter(event => event.trackId !== String(trackId));
+    timelineSelectionIds = new Set(
+        [...timelineSelectionIds].filter(id => recordingData.some(event => event.id === id))
+    );
+    rebuildTrackEventRefs();
+    renderRibbon();
+    recordCompositionTransaction("DELETE_TRACK", "Delete Track", before);
+    return true;
+}
+
+function setTempo(bpm) {
+    const nextTempo = Number(bpm);
+    if (!Number.isFinite(nextTempo) || nextTempo <= 0) {
+        throw new RangeError("Tempo must be a positive number.");
+    }
+    if (nextTempo === tempoBpm) return false;
+    const before = beginCompositionTransaction();
+    tempoBpm = nextTempo;
+    recordingData = recordingData.map(event => makeTimelineEvent(
+        event,
+        getEventTick(event),
+        getEventDurationTicks(event)
+    ));
+    cellMemories = cellMemories.map(cell => ({
+        ...cell,
+        events: cell.events.map(event => ({
+            ...event,
+            startOffset: secondsForTicks(event.startOffsetTicks),
+            duration: secondsForTicks(event.durationTicks)
+        }))
+    }));
+    rebuildTrackEventRefs();
+    renderRibbon();
+    recordCompositionTransaction("CHANGE_TEMPO", "Change Tempo", before);
+    return true;
+}
+
+function changeInstrument(updates) {
+    if (!updates || typeof updates !== "object") {
+        throw new TypeError("Provide instrument settings to change.");
+    }
+    const before = beginCompositionTransaction();
+    const next = { ...instrumentSettings, ...updates };
+    for (const setting of ["attack", "decay", "sustain", "release", "duration"]) {
+        if (!Number.isFinite(Number(next[setting])) || Number(next[setting]) < 0) {
+            throw new RangeError(`${setting} must be a non-negative number.`);
+        }
+        next[setting] = Number(next[setting]);
+    }
+    if (!["sine", "square", "sawtooth", "triangle"].includes(next.waveform)) {
+        throw new RangeError("Choose a supported waveform.");
+    }
+    instrumentSettings = next;
+    updateInstrumentControls();
+    applyInstrumentSettingsToSynth();
+    recordCompositionTransaction("CHANGE_INSTRUMENT", "Change Instrument", before);
+    return true;
+}
+
+function addEffect(trackId, effect) {
+    if (!tracks.some(track => track.id === String(trackId))
+        || !effect || typeof effect !== "object") {
+        throw new TypeError("Provide a valid track and effect.");
+    }
+    const before = beginCompositionTransaction();
+    let chain = fxChains.find(candidate => candidate.trackId === String(trackId));
+    if (!chain) {
+        chain = { trackId: String(trackId), effects: [] };
+        fxChains.push(chain);
+    }
+    const addedEffect = { ...effect, id: String(effect.id || crypto.randomUUID()) };
+    chain.effects.push(addedEffect);
+    recordCompositionTransaction("ADD_EFFECT", "Add Effect", before);
+    return addedEffect.id;
+}
+
+function removeEffect(trackId, effectId) {
+    const chain = fxChains.find(candidate => candidate.trackId === String(trackId));
+    if (!chain || !chain.effects.some(effect => effect.id === String(effectId))) return false;
+    const before = beginCompositionTransaction();
+    chain.effects = chain.effects.filter(effect => effect.id !== String(effectId));
+    if (chain.effects.length === 0) {
+        fxChains = fxChains.filter(candidate => candidate !== chain);
+    }
+    recordCompositionTransaction("REMOVE_EFFECT", "Remove Effect", before);
+    return true;
 }
 
 function highlightKey(keyName) {
@@ -563,11 +1217,11 @@ function recordEvent(type, note) {
             startTick,
             note,
             velocity: 1,
-            waveform: waveformSelect.value,
-            attack: Number(attackSlider.value),
-            decay: Number(decaySlider.value),
-            sustain: Number(sustainSlider.value),
-            release: Number(releaseSlider.value)
+            waveform: instrumentSettings.waveform,
+            attack: instrumentSettings.attack,
+            decay: instrumentSettings.decay,
+            sustain: instrumentSettings.sustain,
+            release: instrumentSettings.release
         });
         return;
     }
@@ -589,25 +1243,39 @@ function recordEvent(type, note) {
     }
 }
 
-function loadProject(data) {
+function finishRecording() {
+    if (!isRecording) return false;
+    [...activeRecordingNoteIds.keys()].forEach(note => recordEvent("noteOff", note));
+    activeRecordingNoteIds.clear();
+    isRecording = false;
+    if (recordingHistoryBefore) {
+        recordCompositionTransaction("ADD_NOTE", "Record Phrase", recordingHistoryBefore);
+    }
+    recordingHistoryBefore = null;
+    return true;
+}
+
+function loadProject(data, options = {}) {
+    if (pendingInstrumentTransaction) finishInstrumentEdit();
+    finishRecording();
+    const compositionData = data.composition || data;
     projectName.value = data.name || "";
     projectDescription.value = data.description || "";
-    waveformSelect.value = data.waveform || "sine";
+    const instrument = compositionData.instruments?.[0] || {};
+    instrumentSettings = {
+        id: instrument.id || "instrument_1",
+        trackId: instrument.trackId || DEFAULT_TRACK_ID,
+        waveform: instrument.waveform || compositionData.waveform || data.waveform || "sine",
+        attack: Number(instrument.attack ?? compositionData.attack ?? data.attack ?? 0.05),
+        decay: Number(instrument.decay ?? compositionData.decay ?? data.decay ?? 0.2),
+        sustain: Number(instrument.sustain ?? compositionData.sustain ?? data.sustain ?? 0.6),
+        release: Number(instrument.release ?? compositionData.release ?? data.release ?? 1),
+        duration: Number(instrument.duration ?? compositionData.duration ?? data.duration ?? 1)
+    };
+    updateInstrumentControls();
 
-    attackSlider.value = data.attack ?? 0.05;
-    decaySlider.value = data.decay ?? 0.2;
-    sustainSlider.value = data.sustain ?? 0.6;
-    releaseSlider.value = data.release ?? 1;
-    if (durationSlider) durationSlider.value = data.duration ?? 1;
-
-    attackValue.textContent = attackSlider.value;
-    decayValue.textContent = decaySlider.value;
-    sustainValue.textContent = sustainSlider.value;
-    releaseValue.textContent = releaseSlider.value;
-    if (durationValue) durationValue.textContent = durationSlider?.value ?? "1";
-
-    const timing = data.timing || {};
-    const loadedTempo = Number(timing.tempoBpm);
+    const timing = compositionData.timing || data.timing || {};
+    const loadedTempo = Number(compositionData.tempo ?? timing.tempoBpm);
     const loadedBeatsPerBar = Number(timing.beatsPerBar);
     const loadedBeatUnit = Number(timing.beatUnit);
     tempoBpm = Number.isFinite(loadedTempo) && loadedTempo > 0
@@ -620,28 +1288,69 @@ function loadProject(data) {
         ? loadedBeatUnit
         : DEFAULT_BEAT_UNIT;
 
-    regionCount = Math.max(1, Number(data.regionCount) || 4);
-    const savedTimelineDuration = Number(data.timeline?.duration);
+    const savedTimeline = compositionData.timeline || data.timeline || {};
+    regionCount = Math.max(
+        1,
+        Number(savedTimeline.regionCount || compositionData.regionCount || data.regionCount) || 4
+    );
+    const savedTimelineDuration = Number(savedTimeline.duration);
     timelineDurationTicks = Number.isFinite(savedTimelineDuration) && savedTimelineDuration > 0
         ? secondsToTicks(savedTimelineDuration)
         : 0;
-    cellMemories = normalizeCellMemories(data.cellMemories);
+    const savedTracks = compositionData.tracks || data.tracks || savedTimeline.tracks;
+    cellMemories = normalizeCellMemories(
+        compositionData.cells || compositionData.cellMemories || data.cellMemories
+    );
     selectedCellMemoryId = cellMemories.some(cell => cell.id === data.selectedCellMemoryId)
         ? data.selectedCellMemoryId
         : cellMemories[0].id;
     recordingData = normalizeTimelineEvents(
-        data.timelineEvents || data.events || data.recordingData || []
+        compositionData.events
+            || compositionData.timelineEvents
+            || data.timelineEvents
+            || data.events
+            || data.recordingData
+            || []
     );
-    tracks = normalizeTracks(data.tracks || data.timeline?.tracks, recordingData);
+    tracks = normalizeTracks(savedTracks, recordingData);
+    mixerState = normalizeMixerState(data.mixerState, tracks, savedTracks || []);
+    mixerVersionStore = normalizeMixerVersionStore(data.mixerVersionStore);
+    mixerBaselineSnapshot = cloneState(mixerState);
+    mixerVersionStore.isDirty = false;
+    fxChains = Array.isArray(compositionData.fxChains)
+        ? cloneState(compositionData.fxChains)
+        : [];
     rebuildTrackEventRefs();
 
-    waveformSelect.dispatchEvent(new Event("change"));
-    updateEnvelope();
+    applyInstrumentSettingsToSynth();
     updateCellTransferControls();
     renderCellMemoryBank();
     renderRibbon();
+    if (!options.preserveHistory) {
+        undoStack = [];
+        redoStack = [];
+        updateHistoryControls();
+    }
 
     console.log("PROJECT LOADED", data.name);
+}
+
+function importProject(data) {
+    const before = beginCompositionTransaction();
+    const previousMixerState = cloneState(mixerState);
+    const previousMixerVersionStore = cloneState(mixerVersionStore);
+    const previousMixerBaseline = cloneState(mixerBaselineSnapshot);
+    try {
+        loadProject(data, { preserveHistory: true });
+    } catch (error) {
+        restoreCompositionSnapshot(before);
+        mixerState = previousMixerState;
+        mixerVersionStore = normalizeMixerVersionStore(previousMixerVersionStore);
+        mixerBaselineSnapshot = previousMixerBaseline;
+        applyMasterVolume();
+        throw error;
+    }
+    recordCompositionTransaction("IMPORT_PROJECT", "Import Project", before);
 }
 
 function noteOn(note) {
@@ -685,29 +1394,44 @@ document.addEventListener("keyup", (event) => {
 });
 
 attackSlider.addEventListener("input", () => {
+    beginInstrumentEdit();
     attackValue.textContent = attackSlider.value;
+    syncInstrumentSettingsFromControls();
     updateEnvelope();
 });
+attackSlider.addEventListener("change", finishInstrumentEdit);
 
 decaySlider.addEventListener("input", () => {
+    beginInstrumentEdit();
     decayValue.textContent = decaySlider.value;
+    syncInstrumentSettingsFromControls();
     updateEnvelope();
 });
+decaySlider.addEventListener("change", finishInstrumentEdit);
 
 sustainSlider.addEventListener("input", () => {
+    beginInstrumentEdit();
     sustainValue.textContent = sustainSlider.value;
+    syncInstrumentSettingsFromControls();
     updateEnvelope();
 });
+sustainSlider.addEventListener("change", finishInstrumentEdit);
 
 releaseSlider.addEventListener("input", () => {
+    beginInstrumentEdit();
     releaseValue.textContent = releaseSlider.value;
+    syncInstrumentSettingsFromControls();
     updateEnvelope();
 });
+releaseSlider.addEventListener("change", finishInstrumentEdit);
 
 if (durationSlider && durationValue) {
     durationSlider.addEventListener("input", () => {
+        beginInstrumentEdit();
         durationValue.textContent = durationSlider.value;
+        syncInstrumentSettingsFromControls();
     });
+    durationSlider.addEventListener("change", finishInstrumentEdit);
 }
 
 function stopPlayback() {
@@ -1051,6 +1775,7 @@ function saveSelectionToCell(selection, cellId) {
         return false;
     }
 
+    const before = beginCompositionTransaction();
     const startTick = Math.min(...selectedEvents.map(getEventTick));
     target.events = selectedEvents.map(event => createCellEventCopy(
         event,
@@ -1059,6 +1784,7 @@ function saveSelectionToCell(selection, cellId) {
     target.createdAt = Date.now();
     selectedCellMemoryId = target.id;
     renderCellMemoryBank();
+    recordCompositionTransaction("SAVE_CELL", "Save Cell", before);
     setCellActionStatus(`Saved ${selectedEvents.length} selected note${selectedEvents.length === 1 ? "" : "s"} to Cell ${target.name}.`);
     return true;
 }
@@ -1083,9 +1809,11 @@ function copyCell(sourceId, targetId) {
         return false;
     }
 
+    const before = beginCompositionTransaction();
     target.events = source.events.map(event => createCellEventCopy(event));
     target.createdAt = Date.now();
     renderCellMemoryBank();
+    recordCompositionTransaction("COPY_CELL", "Copy Cell", before);
     setCellActionStatus(`Copied Cell ${source.name} memory to Cell ${target.name}.`);
     return true;
 }
@@ -1100,9 +1828,11 @@ function clearCell(cellId) {
         setCellActionStatus("Clear cancelled; cell memory and timeline are unchanged.");
         return false;
     }
+    const before = beginCompositionTransaction();
     cell.events = [];
     cell.createdAt = null;
     renderCellMemoryBank();
+    recordCompositionTransaction("CLEAR_CELL", "Clear Cell", before);
     setCellActionStatus(`Cleared Cell ${cell.name}. Timeline events were not changed.`);
     return true;
 }
@@ -1114,9 +1844,11 @@ function renameCell(cellId, name) {
         setCellActionStatus("Choose a valid Cell and enter a non-empty name.", true);
         return false;
     }
+    const before = beginCompositionTransaction();
     cell.name = nextName;
     renderCellMemoryBank();
     updateCellTransferControls();
+    recordCompositionTransaction("RENAME_CELL", "Rename Cell", before);
     setCellActionStatus(`Renamed Cell ${cell.id} to ${cell.name}.`);
     return true;
 }
@@ -1147,6 +1879,7 @@ function pasteCell(cellId, trackId, pasteTime) {
         return false;
     }
 
+    const before = beginCompositionTransaction();
     const pastedEvents = source.events.map(event => makeTimelineEvent({
         ...event,
         id: crypto.randomUUID(),
@@ -1157,6 +1890,7 @@ function pasteCell(cellId, trackId, pasteTime) {
     timelineSelectionIds = new Set(pastedEvents.map(event => event.id));
     timelineSelectionAnchorTick = pasteTick;
     renderRibbon();
+    recordCompositionTransaction("PASTE_CELL", "Paste Cell", before);
     setCellActionStatus(`Pasted Cell ${source.name} to the timeline at tick ${pasteTick}.`);
     return true;
 }
@@ -1179,6 +1913,7 @@ function repeatCell(cellId, trackId, startTime, count) {
         return false;
     }
 
+    const before = beginCompositionTransaction();
     const repeatedEvents = [];
     for (let iteration = 0; iteration < repeatCount; iteration += 1) {
         const iterationStartTick = startTick + iteration * cellDurationTicks;
@@ -1195,6 +1930,7 @@ function repeatCell(cellId, trackId, startTime, count) {
     timelineSelectionIds = new Set(repeatedEvents.map(event => event.id));
     timelineSelectionAnchorTick = startTick;
     renderRibbon();
+    recordCompositionTransaction("REPEAT_CELL", "Repeat Cell", before);
     setCellActionStatus(`Repeated Cell ${source.name} ${repeatCount} time${repeatCount === 1 ? "" : "s"} on the timeline.`);
     return true;
 }
@@ -1218,6 +1954,7 @@ function moveTimelineRegion(selection, destinationTime) {
     const deltaTicks = destinationTick - selectionStartTick;
     const selectedIds = new Set(selectedEvents.map(event => event.id));
 
+    const before = beginCompositionTransaction();
     recordingData = recordingData.map(event => {
         if (!selectedIds.has(event.id)) return event;
         return makeTimelineEvent(event, getEventTick(event) + deltaTicks, getEventDurationTicks(event));
@@ -1225,6 +1962,7 @@ function moveTimelineRegion(selection, destinationTime) {
     rebuildTrackEventRefs();
     timelineSelectionAnchorTick = destinationTick;
     renderRibbon();
+    recordCompositionTransaction("MOVE_NOTE", "Move Notes", before);
     setCellActionStatus(`Moved ${selectedEvents.length} selected timeline note${selectedEvents.length === 1 ? "" : "s"}. Cell memories were not changed.`);
     return true;
 }
@@ -1242,12 +1980,14 @@ function deleteTimelineRegion(selection) {
         return false;
     }
     const selectedIds = new Set(selectedEvents.map(event => event.id));
+    const before = beginCompositionTransaction();
     recordingData = recordingData.filter(event => !selectedIds.has(event.id));
     rebuildTrackEventRefs();
     timelineSelectionIds.clear();
     timelineSelectionAnchorTick = null;
     updateTimelineSelectionAppearance();
     renderRibbon();
+    recordCompositionTransaction("DELETE_NOTE", "Delete Notes", before);
     setCellActionStatus("Deleted the selected timeline events. Cell memories were not changed.");
     return true;
 }
@@ -1304,11 +2044,13 @@ function setCellActionStatus(message, isError = false) {
 }
 
 recordBtn.addEventListener("click", () => {
+    finishRecording();
     stopPlayback();
     timelineSelectionIds.clear();
     timelineSelectionAnchorTick = null;
     updateTimelineSelectionAppearance();
     activeRecordingNoteIds.clear();
+    recordingHistoryBefore = getCompositionSnapshot();
     recordingStartTick = recordingData.length === 0
         ? 0
         : Math.max(...recordingData.map(
@@ -1321,12 +2063,14 @@ recordBtn.addEventListener("click", () => {
 });
 
 saveBtn?.addEventListener("click", () => {
+    captureMixerVersionForTrigger("PROJECT_SAVE");
     const data = buildProjectData();
 
     localStorage.setItem(
         "sis-project",
         JSON.stringify(data)
     );
+    markMixerSaved();
 
     console.log("PROJECT SAVED", data.name);
 });
@@ -1343,7 +2087,7 @@ importFile.addEventListener("change", (event) => {
     reader.onload = (e) => {
         try {
             const data = JSON.parse(e.target.result);
-            loadProject(data);
+            importProject(data);
         } catch (error) {
             console.error("Error parsing imported project:", error);
         }
@@ -1352,6 +2096,7 @@ importFile.addEventListener("change", (event) => {
 });
 
 downloadBtn?.addEventListener("click", () => {
+    captureMixerVersionForTrigger("PROJECT_SAVE");
     const data = buildProjectData();
 
     const blob = new Blob(
@@ -1367,6 +2112,7 @@ downloadBtn?.addEventListener("click", () => {
     a.click();
 
     URL.revokeObjectURL(url);
+    markMixerSaved();
 
     console.log("PROJECT DOWNLOADED", data.name);
 });
@@ -1413,22 +2159,22 @@ repeatCellBtn?.addEventListener("click", () => {
     repeatSelectedCellOnTimeline();
 });
 
+undoBtn?.addEventListener("click", () => {
+    undoComposition();
+});
+
+redoBtn?.addEventListener("click", () => {
+    redoComposition();
+});
+
 pauseBtn.addEventListener("click", () => {
-    if (isRecording) {
-        [...activeRecordingNoteIds.keys()].forEach(note => recordEvent("noteOff", note));
-        activeRecordingNoteIds.clear();
-    }
-    isRecording = false;
+    finishRecording();
     playhead.pause();
     console.log("PAUSE");
 });
 
 stopBtn.addEventListener("click", () => {
-    if (isRecording) {
-        activeNotes.forEach(note => recordEvent("noteOff", note));
-        isRecording = false;
-        activeRecordingNoteIds.clear();
-    }
+    finishRecording();
     stopPlayback();
     renderRibbon();
     console.log("STOP");
@@ -1446,14 +2192,18 @@ loadBtn?.addEventListener("click", () => {
 });
 
 playBtn.addEventListener("click", () => {
-    if (!synth || recordingData.length === 0 || isPlaying) return;
+    if (!synth || isPlaying) return;
 
-    isRecording = false;
+    finishRecording();
+    if (recordingData.length === 0) return;
 
-    const soloTracksExist = tracks.some(track => track.solo);
+    const soloTracksExist = tracks.some(track => mixerState.tracks[track.id]?.solo);
     const playableTrackIds = new Set(
         tracks
-            .filter(track => !track.muted && (!soloTracksExist || track.solo))
+            .filter(track => (
+                !mixerState.tracks[track.id]?.mute
+                && (!soloTracksExist || mixerState.tracks[track.id]?.solo)
+            ))
             .map(track => track.id)
     );
     const playbackEvents = recordingData
