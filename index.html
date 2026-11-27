@@ -61,9 +61,40 @@
     </button>
 
     <button type="button" id="copyBtn">
-        Copy Cell
+        Copy Selected Memory JSON
     </button>
 </div>
+
+<section class="cell-memory">
+    <h2>Cell Memory</h2>
+    <div id="cellMemoryBank" class="cell-memory-bank"></div>
+    <div class="cell-transfer-controls">
+        <label for="saveCellSelect">Save selection to</label>
+        <select id="saveCellSelect"></select>
+        <button type="button" id="saveSelectionBtn">Save Selection to Cell</button>
+
+        <label for="renameCellInput">Cell name</label>
+        <input id="renameCellInput" type="text" maxlength="40" placeholder="Rename selected Cell">
+        <button type="button" id="renameCellBtn">Rename Selected Cell</button>
+
+        <label for="cellSourceSelect">Copy from</label>
+        <select id="cellSourceSelect"></select>
+        <label for="cellTargetSelect">Copy to</label>
+        <select id="cellTargetSelect"></select>
+        <button type="button" id="copyCellContentsBtn">Copy Memory</button>
+
+        <label for="timelineDestinationTick">Destination start tick</label>
+        <input id="timelineDestinationTick" type="number" min="0" step="1" value="0">
+        <button type="button" id="pasteCellMemoryBtn">Paste Memory to Timeline</button>
+        <label for="repeatCellCount">Repeat count</label>
+        <input id="repeatCellCount" type="number" min="1" step="1" value="4">
+        <button type="button" id="repeatCellBtn">Repeat Cell on Timeline</button>
+        <button type="button" id="moveTimelineSelectionBtn">Move Timeline Selection</button>
+        <button type="button" id="deleteTimelineSelectionBtn">Delete Timeline Selection</button>
+        <button type="button" id="clearCellMemoryBtn">Clear Selected Memory</button>
+        <output id="cellActionStatus" aria-live="polite"></output>
+    </div>
+</section>
 
         <div id="keymap">
             Q=C3 &nbsp; 2=C#3<br>

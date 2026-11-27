@@ -185,6 +185,73 @@ button {
     min-width: 90px;
 }
 
+.cell-memory {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.cell-memory h2 {
+    margin-bottom: 0;
+}
+
+.cell-memory-bank {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.cell-memory-slot {
+    min-width: 90px;
+    padding: 8px;
+    border: 1px solid #777;
+    border-radius: 6px;
+    background: #222;
+    color: #eee;
+    cursor: pointer;
+    white-space: pre-line;
+}
+
+.cell-memory-slot.selected {
+    border-color: #7cc7ff;
+    box-shadow: 0 0 8px rgba(124, 199, 255, 0.65);
+}
+
+.cell-transfer-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+}
+
+.cell-transfer-controls label {
+    font-weight: bold;
+}
+
+.cell-transfer-controls input[type="number"] {
+    width: 90px;
+}
+
+.cell-transfer-controls input[type="text"] {
+    width: 150px;
+}
+
+.cell-transfer-controls output {
+    flex-basis: 100%;
+    min-height: 1.2em;
+    text-align: center;
+}
+
+.cell-transfer-controls output.error {
+    color: #b42318;
+}
+
 textarea {
     width: 170px;
     resize: vertical;
@@ -209,14 +276,7 @@ textarea {
     overflow: hidden;
 }
 
-.ribbon-note {
-    position: absolute;
 
-    width: 4px;
-    height: 100%;
-
-    background: #4fa8ff;
-}
 
 .ribbon-block {
     position: absolute;
@@ -273,7 +333,7 @@ textarea {
     z-index: 4;
 }
 
-.ribbon-block.inside-cell {
+.ribbon-block.timeline-event {
     display: flex;
     align-items: center;
     overflow: hidden;
@@ -286,6 +346,11 @@ textarea {
     font-size: 10px;
     font-weight: bold;
     white-space: nowrap;
+}
+
+.ribbon-block.selected {
+    outline: 2px solid #ffd166;
+    z-index: 4;
 }
 
 .ribbon-block.sharp {
@@ -340,26 +405,4 @@ textarea {
 
 .ribbon-time-tick.beat {
     background: rgba(255, 255, 255, 0.38);
-}
-
-.ribbon-cell {
-    position: absolute;
-    top: 6px;
-    height: 104px;
-    overflow: hidden;
-
-    background: rgba(124, 199, 255, 0.08);
-    border: 2px dashed #7cc7ff;
-    border-radius: 6px;
-
-    cursor: pointer;
-    pointer-events: auto;
-    z-index: 3;
-}
-
-.ribbon-cell.selected {
-    background: rgba(124, 199, 255, 0.18);
-    border-style: solid;
-    border-color: #ffffff;
-    box-shadow: 0 0 10px rgba(124, 199, 255, 0.95);
 }

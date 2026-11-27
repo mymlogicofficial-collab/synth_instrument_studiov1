@@ -28,6 +28,22 @@ const projectDescription = document.getElementById("projectDescription");
 const saveBtn = document.getElementById("saveBtn");
 const downloadBtn = document.getElementById("downloadBtn");
 const copyBtn = document.getElementById("copyBtn");
+const saveCellSelect = document.getElementById("saveCellSelect");
+const cellSourceSelect = document.getElementById("cellSourceSelect");
+const cellTargetSelect = document.getElementById("cellTargetSelect");
+const saveSelectionBtn = document.getElementById("saveSelectionBtn");
+const copyCellContentsBtn = document.getElementById("copyCellContentsBtn");
+const pasteCellMemoryBtn = document.getElementById("pasteCellMemoryBtn");
+const moveTimelineSelectionBtn = document.getElementById("moveTimelineSelectionBtn");
+const deleteTimelineSelectionBtn = document.getElementById("deleteTimelineSelectionBtn");
+const clearCellMemoryBtn = document.getElementById("clearCellMemoryBtn");
+const renameCellInput = document.getElementById("renameCellInput");
+const renameCellBtn = document.getElementById("renameCellBtn");
+const repeatCellCountInput = document.getElementById("repeatCellCount");
+const repeatCellBtn = document.getElementById("repeatCellBtn");
+const cellActionStatus = document.getElementById("cellActionStatus");
+const cellMemoryBank = document.getElementById("cellMemoryBank");
+const timelineDestinationTickInput = document.getElementById("timelineDestinationTick");
 const importBtn = document.getElementById("importBtn");
 const importFile = document.getElementById("importFile");
 
@@ -36,34 +52,36 @@ const SIS_TICKS_PER_QUARTER = 960;
 const DEFAULT_TEMPO_BPM = 120;
 const DEFAULT_BEATS_PER_BAR = 4;
 const DEFAULT_BEAT_UNIT = 4;
+const DEFAULT_TRACK_ID = "track_1";
+const DEFAULT_TRACK_NAME = "Track 1";
 const ribbonPitchNames = [
     "C3", "C#3", "D3", "D#3", "E3", "F3",
     "F#3", "G3", "G#3", "A3", "A#3", "B3"
 ];
 const ribbonPitchGutterWidth = 22;
-const ribbonCellBorderSize = 2;
+const CELL_NAMES = ["A", "B", "C", "D"];
 
 let isRecording = false;
 let isPlaying = false;
 let recordingStart = 0;
+let recordingStartTick = 0;
 let recordingData = [];
 let playbackTimeouts = [];
 let regionCount = 4;
+let timelineDurationTicks = 0;
 let ribbonNotes = [];
 let tempoBpm = DEFAULT_TEMPO_BPM;
 let beatsPerBar = DEFAULT_BEATS_PER_BAR;
 let beatUnit = DEFAULT_BEAT_UNIT;
-let ribbonCell = {
-    id: "ribbon-cell-1",
-    start: 0,
-    duration: 25,
-    startTick: 0,
-    lengthTicks: SIS_TICKS_PER_QUARTER * DEFAULT_BEATS_PER_BAR,
-    selected: true
-};
+let tracks = createDefaultTracks();
+let cellMemories = createEmptyCellMemories();
+let selectedCellMemoryId = cellMemories[0].id;
+let timelineSelectionIds = new Set();
+let timelineSelectionAnchorTick = null;
 
 let synth;
 const activeNotes = new Set();
+const activeRecordingNoteIds = new Map();
 
 const keyMap = {
     q: "C3",
@@ -115,8 +133,7 @@ const playhead = (() => {
     }
 
     function getMaxRecordingTime() {
-        if (!Array.isArray(recordingData) || recordingData.length === 0) return 0;
-        return Math.max(...recordingData.map(e => e.time || 0));
+        return ticksToMilliseconds(getTimelineLengthTicks());
     }
 
     function tick(now) {
@@ -240,9 +257,283 @@ function buildProjectData() {
             beatUnit: beatUnit,
             ticksPerQuarter: SIS_TICKS_PER_QUARTER
         },
-        recordingData: recordingData,
-        ribbonCell: ribbonCell
+        timeline: {
+            duration: ticksToMilliseconds(getTimelineLengthTicks()) / 1000,
+            tracks: tracks.map(track => track.id)
+        },
+        tracks: tracks.map(track => ({ ...track, events: [...track.events] })),
+        timelineEvents: recordingData.map(event => ({ ...event })),
+        cellMemories: cellMemories.map(cell => ({
+            ...cell,
+            events: cell.events.map(event => ({ ...event }))
+        })),
+        selectedCellMemoryId: selectedCellMemoryId
     };
+}
+
+function getCellMemory(cellId) {
+    return cellMemories.find(cell => cell.id === cellId);
+}
+
+function createDefaultTracks() {
+    return [{
+        id: DEFAULT_TRACK_ID,
+        name: DEFAULT_TRACK_NAME,
+        muted: false,
+        solo: false,
+        events: []
+    }];
+}
+
+function createEmptyCellMemories() {
+    return CELL_NAMES.map(name => ({
+        id: name,
+        name,
+        createdAt: null,
+        events: []
+    }));
+}
+
+function secondsToTicks(seconds) {
+    return Math.max(
+        0,
+        Math.round((Number(seconds) * tempoBpm * SIS_TICKS_PER_QUARTER) / 60)
+    );
+}
+
+function getEventTick(event) {
+    const storedTick = Number(event.startTick ?? event.tick);
+    if (Number.isFinite(storedTick) && storedTick >= 0) {
+        return Math.round(storedTick);
+    }
+
+    const startTimeSeconds = Number(event.startTime);
+    if (Number.isFinite(startTimeSeconds) && startTimeSeconds >= 0) {
+        return secondsToTicks(startTimeSeconds);
+    }
+
+    const legacyTimeMs = Number(event.time);
+    return Number.isFinite(legacyTimeMs) && legacyTimeMs >= 0
+        ? secondsToTicks(legacyTimeMs / 1000)
+        : 0;
+}
+
+function getEventDurationTicks(event) {
+    const storedTicks = Number(event.durationTicks);
+    if (Number.isFinite(storedTicks) && storedTicks > 0) {
+        return Math.round(storedTicks);
+    }
+
+    const duration = Number(event.duration);
+    return Number.isFinite(duration) && duration > 0
+        ? Math.max(1, secondsToTicks(duration))
+        : 1;
+}
+
+function secondsForTicks(ticks) {
+    return ticksToMilliseconds(ticks) / 1000;
+}
+
+function makeTimelineEvent(rawEvent, startTick, durationTicks) {
+    const normalizedStartTick = Math.max(0, Math.round(startTick));
+    const normalizedDurationTicks = Math.max(1, Math.round(durationTicks));
+    return {
+        id: String(rawEvent.id || rawEvent.eventId || crypto.randomUUID()),
+        trackId: String(rawEvent.trackId || DEFAULT_TRACK_ID),
+        note: String(rawEvent.note || ""),
+        startTime: secondsForTicks(normalizedStartTick),
+        duration: secondsForTicks(normalizedDurationTicks),
+        startTick: normalizedStartTick,
+        durationTicks: normalizedDurationTicks,
+        velocity: Number.isFinite(Number(rawEvent.velocity))
+            ? Number(rawEvent.velocity)
+            : 1,
+        waveform: String(rawEvent.waveform || waveformSelect.value),
+        attack: Number.isFinite(Number(rawEvent.attack))
+            ? Number(rawEvent.attack)
+            : Number(attackSlider.value),
+        decay: Number.isFinite(Number(rawEvent.decay))
+            ? Number(rawEvent.decay)
+            : Number(decaySlider.value),
+        sustain: Number.isFinite(Number(rawEvent.sustain))
+            ? Number(rawEvent.sustain)
+            : Number(sustainSlider.value),
+        release: Number.isFinite(Number(rawEvent.release))
+            ? Number(rawEvent.release)
+            : Number(releaseSlider.value)
+    };
+}
+
+function normalizeCellEvent(rawEvent) {
+    const startOffsetTicks = Number.isFinite(Number(rawEvent.startOffsetTicks))
+        ? Math.max(0, Math.round(Number(rawEvent.startOffsetTicks)))
+        : secondsToTicks(rawEvent.startOffset || 0);
+    const durationTicks = Number.isFinite(Number(rawEvent.durationTicks))
+        ? Math.max(1, Math.round(Number(rawEvent.durationTicks)))
+        : Math.max(1, secondsToTicks(rawEvent.duration || 0));
+    const event = makeTimelineEvent(rawEvent, startOffsetTicks, durationTicks);
+    return {
+        ...event,
+        startOffset: secondsForTicks(startOffsetTicks),
+        startOffsetTicks
+    };
+}
+
+function normalizeCellMemories(savedMemories) {
+    const defaults = createEmptyCellMemories();
+    const savedByName = new Map();
+    (Array.isArray(savedMemories) ? savedMemories : [])
+        .filter(cell => cell && typeof cell === "object")
+        .forEach(cell => {
+            const id = String(cell.id || cell.name || "").replace(/^cell-memory-/, "");
+            if (id) savedByName.set(id, cell);
+            if (cell.name && !savedByName.has(String(cell.name))) {
+                savedByName.set(String(cell.name), cell);
+            }
+        });
+
+    return defaults.map(defaultCell => {
+        const saved = savedByName.get(defaultCell.name);
+        if (saved && !Array.isArray(saved.events)) {
+            throw new TypeError(`Cell ${defaultCell.name} memory events must be an array.`);
+        }
+        const savedEvents = saved?.events || [];
+        const hasLegacyPairs = savedEvents.some(event => (
+            event && (event.type === "noteOn" || event.type === "noteOff")
+        ));
+        const normalizedSavedEvents = hasLegacyPairs
+            ? normalizeTimelineEvents(savedEvents)
+            : savedEvents.map(rawEvent => {
+                if (!rawEvent || typeof rawEvent !== "object") {
+                    throw new TypeError(`Cell ${defaultCell.name} contains an invalid memory event.`);
+                }
+                return normalizeCellEvent(rawEvent);
+            });
+
+        return {
+            id: defaultCell.id,
+            name: String(saved?.name || defaultCell.name),
+            createdAt: saved?.createdAt != null && Number.isFinite(Number(saved.createdAt))
+                ? Number(saved.createdAt)
+                : null,
+            events: normalizedSavedEvents.map(event => {
+                const normalized = normalizeCellEvent(event.startOffset !== undefined
+                    ? event
+                    : {
+                        ...event,
+                        startOffsetTicks: getEventTick(event),
+                        durationTicks: getEventDurationTicks(event)
+                    });
+                delete normalized.type;
+                delete normalized.startTime;
+                delete normalized.startTick;
+                return normalized;
+            })
+        };
+    });
+}
+
+function normalizeTimelineEvents(events) {
+    if (!Array.isArray(events)) {
+        throw new TypeError("Project timeline events must be an array.");
+    }
+
+    if (events.some(event => event && (event.type === "noteOn" || event.type === "noteOff"))) {
+        const activeNotes = new Map();
+        const notes = [];
+        events.forEach(rawEvent => {
+            if (!rawEvent || typeof rawEvent !== "object") {
+                throw new TypeError("Project timeline contains an invalid event.");
+            }
+            const key = String(rawEvent.noteId || rawEvent.note);
+            if (rawEvent.type === "noteOn") {
+                activeNotes.set(key, rawEvent);
+            } else if (rawEvent.type === "noteOff") {
+                const noteOn = activeNotes.get(key);
+                if (!noteOn) {
+                    throw new TypeError(`Timeline note "${rawEvent.note}" has no matching note-on.`);
+                }
+                const startTick = getEventTick(noteOn);
+                const endTick = getEventTick(rawEvent);
+                if (endTick <= startTick) {
+                    throw new TypeError(`Timeline note "${rawEvent.note}" has invalid duration.`);
+                }
+                notes.push(makeTimelineEvent({
+                    ...noteOn,
+                    id: noteOn.id || noteOn.eventId,
+                    trackId: noteOn.trackId || rawEvent.trackId
+                }, startTick, endTick - startTick));
+                activeNotes.delete(key);
+            } else {
+                notes.push(makeTimelineEvent(
+                    rawEvent,
+                    getEventTick(rawEvent),
+                    getEventDurationTicks(rawEvent)
+                ));
+            }
+        });
+        if (activeNotes.size > 0) {
+            throw new TypeError("Project timeline contains note-on events without matching note-off events.");
+        }
+        return notes;
+    }
+
+    return events.map(rawEvent => {
+        if (!rawEvent || typeof rawEvent !== "object") {
+            throw new TypeError("Project timeline contains an invalid event.");
+        }
+        const startTick = getEventTick(rawEvent);
+        const durationTicks = getEventDurationTicks(rawEvent);
+        const normalized = makeTimelineEvent(rawEvent, startTick, durationTicks);
+        if (rawEvent.startOffset !== undefined) {
+            const startOffsetTicks = Number.isFinite(Number(rawEvent.startOffsetTicks))
+                ? Math.max(0, Math.round(Number(rawEvent.startOffsetTicks)))
+                : secondsToTicks(rawEvent.startOffset);
+            normalized.startTime = secondsForTicks(startOffsetTicks);
+            normalized.startTick = startOffsetTicks;
+        }
+        return normalized;
+    });
+}
+
+function normalizeTracks(savedTracks, timelineEvents) {
+    const knownTracks = new Map();
+    if (Array.isArray(savedTracks)) {
+        savedTracks.forEach(track => {
+            const trackId = typeof track === "string" ? track : track?.id;
+            if (!trackId) return;
+            knownTracks.set(String(trackId), {
+                id: String(trackId),
+                name: String(typeof track === "string" ? track : track.name || trackId),
+                muted: Boolean(typeof track === "string" ? false : track.muted),
+                solo: Boolean(typeof track === "string" ? false : track.solo),
+                events: []
+            });
+        });
+    }
+    if (!knownTracks.has(DEFAULT_TRACK_ID)) {
+        knownTracks.set(DEFAULT_TRACK_ID, createDefaultTracks()[0]);
+    }
+    timelineEvents.forEach(event => {
+        if (!knownTracks.has(event.trackId)) {
+            knownTracks.set(event.trackId, {
+                id: event.trackId,
+                name: event.trackId,
+                muted: false,
+                solo: false,
+                events: []
+            });
+        }
+    });
+    return [...knownTracks.values()];
+}
+
+function rebuildTrackEventRefs() {
+    tracks.forEach(track => {
+        track.events = recordingData
+            .filter(event => event.trackId === track.id)
+            .map(event => event.id);
+    });
 }
 
 function highlightKey(keyName) {
@@ -262,15 +553,40 @@ function unhighlightKey(keyName) {
 function recordEvent(type, note) {
     if (!isRecording) return;
 
-    const time = performance.now() - recordingStart;
-    recordingData.push({
-        type: type,
-        note: note,
-        time: time,
-        tick: Math.round((time * tempoBpm * SIS_TICKS_PER_QUARTER) / 60000)
-    });
+    if (type === "noteOn") {
+        const elapsed = performance.now() - recordingStart;
+        const startTick = recordingStartTick
+            + Math.round((elapsed * tempoBpm * SIS_TICKS_PER_QUARTER) / 60000);
+        activeRecordingNoteIds.set(note, {
+            id: crypto.randomUUID(),
+            trackId: DEFAULT_TRACK_ID,
+            startTick,
+            note,
+            velocity: 1,
+            waveform: waveformSelect.value,
+            attack: Number(attackSlider.value),
+            decay: Number(decaySlider.value),
+            sustain: Number(sustainSlider.value),
+            release: Number(releaseSlider.value)
+        });
+        return;
+    }
 
-    console.log(recordingData);
+    if (type === "noteOff") {
+        const startedNote = activeRecordingNoteIds.get(note);
+        if (!startedNote) return;
+        activeRecordingNoteIds.delete(note);
+        const elapsed = performance.now() - recordingStart;
+        const endTick = recordingStartTick
+            + Math.round((elapsed * tempoBpm * SIS_TICKS_PER_QUARTER) / 60000);
+        recordingData.push(makeTimelineEvent(
+            startedNote,
+            startedNote.startTick,
+            Math.max(1, endTick - startedNote.startTick)
+        ));
+        rebuildTrackEventRefs();
+        renderRibbon();
+    }
 }
 
 function loadProject(data) {
@@ -305,31 +621,24 @@ function loadProject(data) {
         : DEFAULT_BEAT_UNIT;
 
     regionCount = Math.max(1, Number(data.regionCount) || 4);
-    recordingData = data.recordingData || [];
-    ribbonCell = data.ribbonCell
-        ? {
-            id: "ribbon-cell-1",
-            start: Number(data.ribbonCell.start) || 0,
-            duration: Math.max(1, Number(data.ribbonCell.duration) || 25),
-            startTick: Math.max(0, Math.round(Number(data.ribbonCell.startTick) || 0)),
-            lengthTicks: Math.max(
-                1,
-                Math.round(Number(data.ribbonCell.lengthTicks) ||
-                    (SIS_TICKS_PER_QUARTER * beatsPerBar * 4) / beatUnit)
-            ),
-            selected: data.ribbonCell.selected !== false
-        }
-        : {
-            id: "ribbon-cell-1",
-            start: 0,
-            duration: 25,
-            startTick: 0,
-            lengthTicks: (SIS_TICKS_PER_QUARTER * beatsPerBar * 4) / beatUnit,
-            selected: true
-        };
+    const savedTimelineDuration = Number(data.timeline?.duration);
+    timelineDurationTicks = Number.isFinite(savedTimelineDuration) && savedTimelineDuration > 0
+        ? secondsToTicks(savedTimelineDuration)
+        : 0;
+    cellMemories = normalizeCellMemories(data.cellMemories);
+    selectedCellMemoryId = cellMemories.some(cell => cell.id === data.selectedCellMemoryId)
+        ? data.selectedCellMemoryId
+        : cellMemories[0].id;
+    recordingData = normalizeTimelineEvents(
+        data.timelineEvents || data.events || data.recordingData || []
+    );
+    tracks = normalizeTracks(data.tracks || data.timeline?.tracks, recordingData);
+    rebuildTrackEventRefs();
 
     waveformSelect.dispatchEvent(new Event("change"));
     updateEnvelope();
+    updateCellTransferControls();
+    renderCellMemoryBank();
     renderRibbon();
 
     console.log("PROJECT LOADED", data.name);
@@ -414,38 +723,79 @@ function stopPlayback() {
     document.querySelectorAll("[data-key]").forEach(el => el.classList.remove("active"));
 }
 
-function getRegionName(index) {
-    let label = "";
-    let n = index;
-    do {
-        label = String.fromCharCode(65 + (n % 26)) + label;
-        n = Math.floor(n / 26) - 1;
-    } while (n >= 0);
-    return label;
+function renderRegions(count = regionCount) {
+    if (!ribbon) return;
+    const safeCount = Math.max(1, Number(count) || 1);
+    const widthPct = 100 / safeCount;
+
+    for (let i = 0; i < safeCount; i++) {
+        const seg = document.createElement("div");
+        seg.className = "ribbon-region";
+        seg.dataset.regionIndex = String(i);
+        seg.dataset.regionName = String(i + 1);
+        seg.style.left = `${i * widthPct}%`;
+        seg.style.width = `${widthPct}%`;
+
+        const tag = document.createElement("span");
+        tag.className = "ribbon-region-label";
+        tag.textContent = String(i + 1);
+
+        seg.appendChild(tag);
+        ribbon.appendChild(seg);
+    }
 }
 
-function renderRibbonCell() {
-    if (!ribbon) return null;
+function handleTimelineNoteSelection(note, event) {
+    const noteId = note.id;
+    if (event.shiftKey && timelineSelectionAnchorTick !== null) {
+        const rangeStart = Math.min(timelineSelectionAnchorTick, note.startTick);
+        const rangeEnd = Math.max(timelineSelectionAnchorTick, note.startTick);
+        if (!event.ctrlKey && !event.metaKey) timelineSelectionIds.clear();
+        ribbonNotes.forEach(candidate => {
+            if (candidate.startTick >= rangeStart && candidate.startTick <= rangeEnd) {
+                timelineSelectionIds.add(candidate.id);
+            }
+        });
+    } else if (event.ctrlKey || event.metaKey) {
+        if (timelineSelectionIds.has(noteId)) timelineSelectionIds.delete(noteId);
+        else timelineSelectionIds.add(noteId);
+        timelineSelectionAnchorTick = note.startTick;
+    } else {
+        timelineSelectionIds.clear();
+        timelineSelectionIds.add(noteId);
+        timelineSelectionAnchorTick = note.startTick;
+    }
 
-    const cell = document.createElement("div");
-    cell.className = "ribbon-cell";
-    cell.dataset.cellId = ribbonCell.id;
-    cell.title = "Cell A piano roll";
-    cell.tabIndex = 0;
-    cell.setAttribute("role", "button");
-    cell.setAttribute("aria-label", "Cell A piano roll");
+    updateTimelineSelectionAppearance();
+    const count = timelineSelectionIds.size;
+    setCellActionStatus(`${count} timeline event${count === 1 ? "" : "s"} selected.`);
+}
 
-    cell.style.left = `${ribbonCell.start}%`;
-    cell.style.width = `${ribbonCell.duration}%`;
-    if (ribbonCell.selected) cell.classList.add("selected");
-    ribbon.appendChild(cell);
+function updateTimelineSelectionAppearance() {
+    document.querySelectorAll(".ribbon-block").forEach(block => {
+        const selected = timelineSelectionIds.has(block.dataset.noteId);
+        block.classList.toggle("selected", selected);
+        block.setAttribute("aria-pressed", String(selected));
+    });
+}
 
-    const innerHeight = Math.max(1, cell.clientHeight - ribbonCellBorderSize * 2);
-    const laneHeight = innerHeight / ribbonPitchNames.length;
+function getSelectedTimelineNotes() {
+    return ribbonNotes.filter(note => timelineSelectionIds.has(note.id));
+}
+
+function renderRibbon() {
+    if (!ribbon) return;
+
+    ribbon.innerHTML = "";
+    renderRegions(regionCount);
+    playhead.ensureEl();
+    const timelineLengthTicks = getTimelineLengthTicks();
     const plot = document.createElement("div");
-    plot.className = "ribbon-note-plot";
+    plot.className = "ribbon-note-plot timeline-note-plot";
     plot.style.left = `${ribbonPitchGutterWidth}px`;
+    ribbon.appendChild(plot);
 
+    const laneHeight = ribbon.clientHeight / ribbonPitchNames.length;
     [...ribbonPitchNames].reverse().forEach((pitch, row) => {
         const lane = document.createElement("div");
         lane.className = "ribbon-pitch-lane";
@@ -457,101 +807,26 @@ function renderRibbonCell() {
         label.className = "ribbon-pitch-label";
         label.textContent = pitch;
         lane.appendChild(label);
-        cell.appendChild(lane);
+        plot.appendChild(lane);
     });
 
-    const cellEndTick = ribbonCell.startTick + ribbonCell.lengthTicks;
     const sixteenthTicks = SIS_TICKS_PER_QUARTER / 4;
-    for (
-        let tickValue = ribbonCell.startTick + sixteenthTicks;
-        tickValue < cellEndTick;
-        tickValue += sixteenthTicks
-    ) {
+    for (let tick = sixteenthTicks; tick < timelineLengthTicks; tick += sixteenthTicks) {
         const tickElement = document.createElement("div");
         tickElement.className = "ribbon-time-tick";
-        const tickPosition = (tickValue - ribbonCell.startTick) / ribbonCell.lengthTicks;
-        tickElement.style.left = `${tickPosition * 100}%`;
-        if ((tickValue - ribbonCell.startTick) % SIS_TICKS_PER_QUARTER === 0) {
-            tickElement.classList.add("beat");
-        }
+        tickElement.style.left = `${(tick / timelineLengthTicks) * 100}%`;
+        if (tick % SIS_TICKS_PER_QUARTER === 0) tickElement.classList.add("beat");
         plot.appendChild(tickElement);
-    }
-    cell.appendChild(plot);
-
-    const selectCell = () => {
-        ribbonCell.selected = true;
-        document.querySelectorAll(".ribbon-cell").forEach(el => el.classList.remove("selected"));
-        document.querySelectorAll(".ribbon-block").forEach(el => el.classList.remove("selected"));
-        cell.classList.add("selected");
-    };
-
-    cell.addEventListener("click", selectCell);
-    cell.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            selectCell();
-        }
-    });
-
-    return plot;
-}
-
-function renderRegions(count = regionCount) {
-    if (!ribbon) return;
-    const safeCount = Math.max(1, Number(count) || 1);
-    const widthPct = 100 / safeCount;
-
-    for (let i = 0; i < safeCount; i++) {
-        const seg = document.createElement("div");
-        seg.className = "ribbon-region";
-        seg.dataset.regionIndex = String(i);
-        seg.dataset.regionName = getRegionName(i);
-        seg.style.left = `${i * widthPct}%`;
-        seg.style.width = `${widthPct}%`;
-
-        const tag = document.createElement("span");
-        tag.className = "ribbon-region-label";
-        tag.textContent = getRegionName(i);
-
-        seg.appendChild(tag);
-        ribbon.appendChild(seg);
-    }
-}
-
-function renderRibbon() {
-    if (!ribbon) return;
-
-    ribbon.innerHTML = "";
-    renderRegions(regionCount);
-    playhead.ensureEl();
-    const plot = renderRibbonCell();
-    playhead.setRange(ribbonCell.start, ribbonCell.duration);
-
-    if (recordingData.length === 0) {
-        playhead.reset();
-        return;
     }
 
     ribbonNotes = buildRibbonNotes();
-    if (ribbonNotes.length === 0) {
-        playhead.reset();
-        return;
-    }
-
-    const cellStartTick = ribbonCell.startTick;
-    const cellEndTick = cellStartTick + ribbonCell.lengthTicks;
 
     ribbonNotes.forEach(note => {
-        const noteStartTick = note.startTick;
-        const noteEndTick = noteStartTick + note.durationTicks;
-        const visibleStartTick = Math.max(cellStartTick, noteStartTick);
-        const visibleEndTick = Math.min(cellEndTick, noteEndTick);
-        if (visibleEndTick <= visibleStartTick) return;
-
         const block = document.createElement("div");
         block.className = "ribbon-block";
         if (note.note.includes("#")) block.classList.add("sharp");
         block.dataset.note = note.note;
+        block.dataset.noteId = note.id;
         block.dataset.startTick = String(note.startTick);
         block.dataset.durationTicks = String(note.durationTicks);
         block.title = `${note.note} - Start: ${note.startTick} ticks - Duration: ${note.durationTicks} ticks`;
@@ -559,12 +834,13 @@ function renderRibbon() {
             "aria-label",
             `${note.note} note, starts at tick ${note.startTick}, duration ${note.durationTicks} ticks`
         );
-        block.setAttribute("role", "img");
+        block.setAttribute("role", "button");
+        block.tabIndex = 0;
 
-        block.classList.add("inside-cell");
+        block.classList.add("timeline-event");
 
-        const startRatio = (visibleStartTick - cellStartTick) / ribbonCell.lengthTicks;
-        const durationRatio = (visibleEndTick - visibleStartTick) / ribbonCell.lengthTicks;
+        const startRatio = note.startTick / timelineLengthTicks;
+        const durationRatio = note.durationTicks / timelineLengthTicks;
         const pitchIndex = ribbonPitchNames.indexOf(note.note);
         const row = pitchIndex === -1
             ? 0
@@ -577,70 +853,470 @@ function renderRibbon() {
         if (plot.clientWidth * durationRatio >= 24) {
             block.textContent = note.note;
         }
+        block.addEventListener("click", event => handleTimelineNoteSelection(note, event));
+        block.addEventListener("keydown", event => {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                handleTimelineNoteSelection(note, event);
+            }
+        });
 
         plot.appendChild(block);
     });
 
+    updateTimelineSelectionAppearance();
+    playhead.setRange(0, 100);
     playhead.reset();
 }
 
 function buildRibbonNotes() {
-    const notes = [];
-    const active = {};
-
-    recordingData.forEach(event => {
-        if (event.type === "noteOn") {
-            active[event.note] = {
-                time: Number(event.time),
-                tick: getEventTick(event)
-            };
-        }
-
-        if (event.type === "noteOff" && active[event.note] !== undefined) {
-            const start = active[event.note];
-            const endTick = getEventTick(event);
-            notes.push({
-                id: crypto.randomUUID(),
-                note: event.note,
-                start: start.time,
-                duration: Number(event.time) - start.time,
-                startTick: start.tick,
-                durationTicks: Math.max(1, endTick - start.tick)
-            });
-
-            delete active[event.note];
-        }
-    });
-
-    return notes;
-}
-
-function getEventTick(event) {
-    const storedTick = Number(event.tick);
-    if (Number.isFinite(storedTick) && storedTick >= 0) {
-        return Math.round(storedTick);
-    }
-
-    const time = Number(event.time);
-    if (!Number.isFinite(time) || time < 0) return 0;
-    return Math.round((time * tempoBpm * SIS_TICKS_PER_QUARTER) / 60000);
+    return recordingData.map(event => ({
+        id: event.id,
+        trackId: event.trackId,
+        note: event.note,
+        startTick: getEventTick(event),
+        durationTicks: getEventDurationTicks(event)
+    }));
 }
 
 function ticksToMilliseconds(ticks) {
     return (ticks * 60000) / (tempoBpm * SIS_TICKS_PER_QUARTER);
 }
 
-function getRibbonTimelineDuration(notes = buildRibbonNotes()) {
-    return Math.max(1, ...notes.map(note => note.start + note.duration));
+function getTimelineLengthTicks() {
+    const barLengthTicks = (SIS_TICKS_PER_QUARTER * beatsPerBar * 4) / beatUnit;
+    return Math.max(
+        regionCount * barLengthTicks,
+        timelineDurationTicks,
+        ...recordingData.map(event => getEventTick(event) + getEventDurationTicks(event)),
+        1
+    );
+}
+
+function updateCellTransferControls() {
+    const fillSelect = (select, preferredId, avoidId = "") => {
+        if (!select) return;
+        const previousId = select.value;
+        select.replaceChildren();
+
+        cellMemories.forEach(cell => {
+            const option = document.createElement("option");
+            option.value = cell.id;
+            option.textContent = `Cell ${cell.name}`;
+            select.appendChild(option);
+        });
+
+        const hasCell = id => cellMemories.some(cell => cell.id === id);
+        const preferred = hasCell(previousId)
+            ? previousId
+            : hasCell(preferredId)
+                ? preferredId
+                : cellMemories[0]?.id || "";
+        select.value = preferred === avoidId
+            ? cellMemories.find(cell => cell.id !== avoidId)?.id || preferred
+            : preferred;
+    };
+
+    fillSelect(saveCellSelect, selectedCellMemoryId);
+    fillSelect(cellSourceSelect, selectedCellMemoryId);
+    fillSelect(
+        cellTargetSelect,
+        cellMemories.find(cell => cell.id !== selectedCellMemoryId)?.id,
+        cellSourceSelect?.value
+    );
+}
+
+function renderCellMemoryBank() {
+    if (!cellMemoryBank) return;
+    cellMemoryBank.replaceChildren();
+
+    cellMemories.forEach(cell => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "cell-memory-slot";
+        button.classList.toggle("selected", cell.id === selectedCellMemoryId);
+        button.setAttribute("aria-pressed", String(cell.id === selectedCellMemoryId));
+        button.dataset.cellId = cell.id;
+
+        const pairedNoteIds = new Set(
+            cell.events
+                .map(event => event.id)
+        );
+        button.textContent = `${cell.name}\n${pairedNoteIds.size ? `${pairedNoteIds.size} saved note${pairedNoteIds.size === 1 ? "" : "s"}` : "Empty"}`;
+        button.addEventListener("click", () => {
+            selectedCellMemoryId = cell.id;
+            if (saveCellSelect) saveCellSelect.value = cell.id;
+            if (cellSourceSelect) cellSourceSelect.value = cell.id;
+            renderCellMemoryBank();
+        });
+        cellMemoryBank.appendChild(button);
+    });
+
+    const selectedCell = getCellMemory(selectedCellMemoryId);
+    if (renameCellInput) renameCellInput.value = selectedCell?.name || "";
+}
+
+function getTimelineSelection() {
+    const selectedNotes = getSelectedTimelineNotes();
+    if (selectedNotes.length === 0) return null;
+
+    const selectedIds = new Set(selectedNotes.map(note => note.id));
+    const selectedEvents = recordingData.filter(event => selectedIds.has(event.id));
+    const startTick = Math.min(...selectedEvents.map(getEventTick));
+    const endTick = Math.max(...selectedEvents.map(
+        event => getEventTick(event) + getEventDurationTicks(event)
+    ));
+    const trackIds = [...new Set(selectedEvents.map(event => event.trackId))];
+
+    return {
+        startTime: secondsForTicks(startTick),
+        endTime: secondsForTicks(endTick),
+        startTick,
+        endTick,
+        trackIds,
+        eventIds: [...selectedIds]
+    };
+}
+
+function getTimelineEventsInSelection(selection) {
+    if (!selection || !Number.isFinite(Number(selection.startTime))
+        || !Number.isFinite(Number(selection.endTime))
+        || Number(selection.endTime) <= Number(selection.startTime)
+        || !Array.isArray(selection.trackIds)) {
+        throw new TypeError("Provide a valid timeline selection.");
+    }
+
+    if (Array.isArray(selection.eventIds)) {
+        const selectedIds = new Set(selection.eventIds.map(String));
+        return recordingData.filter(event => selectedIds.has(event.id));
+    }
+
+    const startTick = Number.isFinite(Number(selection.startTick))
+        ? Number(selection.startTick)
+        : secondsToTicks(selection.startTime);
+    const endTick = Number.isFinite(Number(selection.endTick))
+        ? Number(selection.endTick)
+        : secondsToTicks(selection.endTime);
+    const trackIds = new Set(selection.trackIds.map(String));
+    return recordingData.filter(event => (
+        trackIds.has(event.trackId)
+        && getEventTick(event) >= startTick
+        && getEventTick(event) < endTick
+    ));
+}
+
+function getCellDurationTicks(cell) {
+    return Math.max(
+        0,
+        ...cell.events.map(event => (
+            Number(event.startOffsetTicks)
+            + Number(event.durationTicks)
+        ))
+    );
+}
+
+function createCellEventCopy(event, startOffsetTicks = Number(event.startOffsetTicks)) {
+    const copied = normalizeCellEvent({
+        ...event,
+        id: crypto.randomUUID(),
+        startOffsetTicks,
+        startOffset: secondsForTicks(startOffsetTicks)
+    });
+    delete copied.startTime;
+    delete copied.startTick;
+    return copied;
+}
+
+function saveSelectionToCell(selection, cellId) {
+    const target = getCellMemory(cellId);
+    if (!target) {
+        setCellActionStatus("Choose a valid Cell memory slot.", true);
+        return false;
+    }
+
+    let selectedEvents;
+    try {
+        selectedEvents = getTimelineEventsInSelection(selection);
+    } catch (error) {
+        setCellActionStatus(error.message, true);
+        return false;
+    }
+    if (selectedEvents.length === 0) {
+        setCellActionStatus("Select one or more timeline notes first.", true);
+        return false;
+    }
+
+    if (target.events.length > 0 && !window.confirm(`Replace the saved contents of Cell ${target.name}?`)) {
+        setCellActionStatus("Save cancelled; cell memory and timeline are unchanged.");
+        return false;
+    }
+
+    const startTick = Math.min(...selectedEvents.map(getEventTick));
+    target.events = selectedEvents.map(event => createCellEventCopy(
+        event,
+        getEventTick(event) - startTick
+    ));
+    target.createdAt = Date.now();
+    selectedCellMemoryId = target.id;
+    renderCellMemoryBank();
+    setCellActionStatus(`Saved ${selectedEvents.length} selected note${selectedEvents.length === 1 ? "" : "s"} to Cell ${target.name}.`);
+    return true;
+}
+
+function copyCell(sourceId, targetId) {
+    const source = getCellMemory(sourceId);
+    const target = getCellMemory(targetId);
+    if (!source || !target) {
+        setCellActionStatus("Choose valid source and destination Cell memory slots.", true);
+        return false;
+    }
+    if (source.id === target.id) {
+        setCellActionStatus("Choose two different Cell memory slots.", true);
+        return false;
+    }
+    if (source.events.length === 0) {
+        setCellActionStatus(`Cell ${source.name} is empty.`, true);
+        return false;
+    }
+    if (target.events.length > 0 && !window.confirm(`Replace the saved contents of Cell ${target.name}?`)) {
+        setCellActionStatus("Copy cancelled; cell memories are unchanged.");
+        return false;
+    }
+
+    target.events = source.events.map(event => createCellEventCopy(event));
+    target.createdAt = Date.now();
+    renderCellMemoryBank();
+    setCellActionStatus(`Copied Cell ${source.name} memory to Cell ${target.name}.`);
+    return true;
+}
+
+function clearCell(cellId) {
+    const cell = getCellMemory(cellId);
+    if (!cell) {
+        setCellActionStatus("Choose a valid Cell memory slot.", true);
+        return false;
+    }
+    if (cell.events.length > 0 && !window.confirm(`Clear the saved contents of Cell ${cell.name}?`)) {
+        setCellActionStatus("Clear cancelled; cell memory and timeline are unchanged.");
+        return false;
+    }
+    cell.events = [];
+    cell.createdAt = null;
+    renderCellMemoryBank();
+    setCellActionStatus(`Cleared Cell ${cell.name}. Timeline events were not changed.`);
+    return true;
+}
+
+function renameCell(cellId, name) {
+    const cell = getCellMemory(cellId);
+    const nextName = String(name || "").trim();
+    if (!cell || !nextName) {
+        setCellActionStatus("Choose a valid Cell and enter a non-empty name.", true);
+        return false;
+    }
+    cell.name = nextName;
+    renderCellMemoryBank();
+    updateCellTransferControls();
+    setCellActionStatus(`Renamed Cell ${cell.id} to ${cell.name}.`);
+    return true;
+}
+
+function getDestinationTick() {
+    const destinationTick = Number(timelineDestinationTickInput?.value);
+    if (!Number.isInteger(destinationTick) || destinationTick < 0) {
+        setCellActionStatus("Destination start tick must be a non-negative whole number.", true);
+        return null;
+    }
+    return destinationTick;
+}
+
+function pasteCell(cellId, trackId, pasteTime) {
+    const source = getCellMemory(cellId);
+    if (!source) {
+        setCellActionStatus("Choose a valid Cell memory slot to paste.", true);
+        return false;
+    }
+    if (source.events.length === 0) {
+        setCellActionStatus(`Cell ${source.name} is empty.`, true);
+        return false;
+    }
+    const targetTrack = tracks.find(track => track.id === String(trackId));
+    const pasteTick = secondsToTicks(pasteTime);
+    if (!targetTrack || !Number.isFinite(Number(pasteTime)) || Number(pasteTime) < 0) {
+        setCellActionStatus("Choose a valid target track and non-negative paste time.", true);
+        return false;
+    }
+
+    const pastedEvents = source.events.map(event => makeTimelineEvent({
+        ...event,
+        id: crypto.randomUUID(),
+        trackId: targetTrack.id
+    }, pasteTick + Number(event.startOffsetTicks), Number(event.durationTicks)));
+    recordingData.push(...pastedEvents);
+    rebuildTrackEventRefs();
+    timelineSelectionIds = new Set(pastedEvents.map(event => event.id));
+    timelineSelectionAnchorTick = pasteTick;
+    renderRibbon();
+    setCellActionStatus(`Pasted Cell ${source.name} to the timeline at tick ${pasteTick}.`);
+    return true;
+}
+
+function repeatCell(cellId, trackId, startTime, count) {
+    const source = getCellMemory(cellId);
+    const targetTrack = tracks.find(track => track.id === String(trackId));
+    const repeatCount = Number(count);
+    const startTick = secondsToTicks(startTime);
+    if (!source || source.events.length === 0 || !targetTrack
+        || !Number.isFinite(Number(startTime)) || Number(startTime) < 0
+        || !Number.isSafeInteger(repeatCount) || repeatCount < 1) {
+        setCellActionStatus("Choose a non-empty Cell, valid target track, start time, and positive whole repeat count.", true);
+        return false;
+    }
+
+    const cellDurationTicks = getCellDurationTicks(source);
+    if (cellDurationTicks < 1) {
+        setCellActionStatus(`Cell ${source.name} has no valid duration.`, true);
+        return false;
+    }
+
+    const repeatedEvents = [];
+    for (let iteration = 0; iteration < repeatCount; iteration += 1) {
+        const iterationStartTick = startTick + iteration * cellDurationTicks;
+        source.events.forEach(event => {
+            repeatedEvents.push(makeTimelineEvent({
+                ...event,
+                id: crypto.randomUUID(),
+                trackId: targetTrack.id
+            }, iterationStartTick + Number(event.startOffsetTicks), Number(event.durationTicks)));
+        });
+    }
+    recordingData.push(...repeatedEvents);
+    rebuildTrackEventRefs();
+    timelineSelectionIds = new Set(repeatedEvents.map(event => event.id));
+    timelineSelectionAnchorTick = startTick;
+    renderRibbon();
+    setCellActionStatus(`Repeated Cell ${source.name} ${repeatCount} time${repeatCount === 1 ? "" : "s"} on the timeline.`);
+    return true;
+}
+
+function moveTimelineRegion(selection, destinationTime) {
+    let selectedEvents;
+    try {
+        selectedEvents = getTimelineEventsInSelection(selection);
+    } catch (error) {
+        setCellActionStatus(error.message, true);
+        return false;
+    }
+    if (selectedEvents.length === 0 || !Number.isFinite(Number(destinationTime)) || Number(destinationTime) < 0) {
+        setCellActionStatus("Select timeline events and enter a valid destination time.", true);
+        return false;
+    }
+    const selectionStartTick = Number.isFinite(Number(selection.startTick))
+        ? Number(selection.startTick)
+        : secondsToTicks(selection.startTime);
+    const destinationTick = secondsToTicks(destinationTime);
+    const deltaTicks = destinationTick - selectionStartTick;
+    const selectedIds = new Set(selectedEvents.map(event => event.id));
+
+    recordingData = recordingData.map(event => {
+        if (!selectedIds.has(event.id)) return event;
+        return makeTimelineEvent(event, getEventTick(event) + deltaTicks, getEventDurationTicks(event));
+    });
+    rebuildTrackEventRefs();
+    timelineSelectionAnchorTick = destinationTick;
+    renderRibbon();
+    setCellActionStatus(`Moved ${selectedEvents.length} selected timeline note${selectedEvents.length === 1 ? "" : "s"}. Cell memories were not changed.`);
+    return true;
+}
+
+function deleteTimelineRegion(selection) {
+    let selectedEvents;
+    try {
+        selectedEvents = getTimelineEventsInSelection(selection);
+    } catch (error) {
+        setCellActionStatus(error.message, true);
+        return false;
+    }
+    if (selectedEvents.length === 0) {
+        setCellActionStatus("Select one or more timeline notes to delete.", true);
+        return false;
+    }
+    const selectedIds = new Set(selectedEvents.map(event => event.id));
+    recordingData = recordingData.filter(event => !selectedIds.has(event.id));
+    rebuildTrackEventRefs();
+    timelineSelectionIds.clear();
+    timelineSelectionAnchorTick = null;
+    updateTimelineSelectionAppearance();
+    renderRibbon();
+    setCellActionStatus("Deleted the selected timeline events. Cell memories were not changed.");
+    return true;
+}
+
+function clearSelectedCellMemory() {
+    clearCell(selectedCellMemoryId);
+}
+
+function moveTimelineSelection() {
+    const selection = getTimelineSelection();
+    const destinationTick = getDestinationTick();
+    if (!selection || destinationTick === null) {
+        if (!selection) setCellActionStatus("Select one or more timeline notes to move.", true);
+        return;
+    }
+    moveTimelineRegion(selection, secondsForTicks(destinationTick));
+}
+
+function deleteTimelineSelection() {
+    const selection = getTimelineSelection();
+    if (!selection) {
+        setCellActionStatus("Select one or more timeline notes to delete.", true);
+        return;
+    }
+    deleteTimelineRegion(selection);
+}
+
+function saveSelectedTimelineNotesToCell(cellId) {
+    const selection = getTimelineSelection();
+    if (!selection) {
+        setCellActionStatus("Select one or more timeline notes first.", true);
+        return;
+    }
+    saveSelectionToCell(selection, cellId);
+}
+
+function pasteSelectedCellToTimeline(cellId) {
+    const destinationTick = getDestinationTick();
+    if (destinationTick === null) return;
+    pasteCell(cellId, DEFAULT_TRACK_ID, secondsForTicks(destinationTick));
+}
+
+function repeatSelectedCellOnTimeline() {
+    const cellId = cellSourceSelect?.value;
+    const destinationTick = getDestinationTick();
+    if (destinationTick === null) return;
+    repeatCell(cellId, DEFAULT_TRACK_ID, secondsForTicks(destinationTick), repeatCellCountInput?.value);
+}
+
+function setCellActionStatus(message, isError = false) {
+    if (!cellActionStatus) return;
+    cellActionStatus.textContent = message;
+    cellActionStatus.classList.toggle("error", isError);
 }
 
 recordBtn.addEventListener("click", () => {
     stopPlayback();
-    recordingData = [];
-    ribbonNotes = [];
-    renderRibbon();
+    timelineSelectionIds.clear();
+    timelineSelectionAnchorTick = null;
+    updateTimelineSelectionAppearance();
+    activeRecordingNoteIds.clear();
+    recordingStartTick = recordingData.length === 0
+        ? 0
+        : Math.max(...recordingData.map(
+            event => getEventTick(event) + getEventDurationTicks(event)
+        ));
     recordingStart = performance.now();
     isRecording = true;
+    setCellActionStatus(`Recording directly to the timeline at tick ${recordingStartTick}.`);
     console.log("RECORD ON");
 });
 
@@ -696,11 +1372,52 @@ downloadBtn?.addEventListener("click", () => {
 });
 
 copyBtn?.addEventListener("click", async () => {
-    await navigator.clipboard.writeText(JSON.stringify(ribbonCell, null, 2));
-    console.log("RIBBON CELL COPIED", ribbonCell.id);
+    const cell = getCellMemory(selectedCellMemoryId);
+    if (!cell) {
+        setCellActionStatus("Select a Cell memory slot first.", true);
+        return;
+    }
+    await navigator.clipboard.writeText(JSON.stringify(cell, null, 2));
+    setCellActionStatus(`Copied Cell ${cell.name} memory data to the clipboard.`);
+});
+
+saveSelectionBtn?.addEventListener("click", () => {
+    saveSelectedTimelineNotesToCell(saveCellSelect?.value);
+});
+
+copyCellContentsBtn?.addEventListener("click", () => {
+    copyCell(cellSourceSelect?.value, cellTargetSelect?.value);
+});
+
+pasteCellMemoryBtn?.addEventListener("click", () => {
+    pasteSelectedCellToTimeline(cellSourceSelect?.value);
+});
+
+moveTimelineSelectionBtn?.addEventListener("click", () => {
+    moveTimelineSelection();
+});
+
+deleteTimelineSelectionBtn?.addEventListener("click", () => {
+    deleteTimelineSelection();
+});
+
+clearCellMemoryBtn?.addEventListener("click", () => {
+    clearSelectedCellMemory();
+});
+
+renameCellBtn?.addEventListener("click", () => {
+    renameCell(selectedCellMemoryId, renameCellInput?.value);
+});
+
+repeatCellBtn?.addEventListener("click", () => {
+    repeatSelectedCellOnTimeline();
 });
 
 pauseBtn.addEventListener("click", () => {
+    if (isRecording) {
+        [...activeRecordingNoteIds.keys()].forEach(note => recordEvent("noteOff", note));
+        activeRecordingNoteIds.clear();
+    }
     isRecording = false;
     playhead.pause();
     console.log("PAUSE");
@@ -710,6 +1427,7 @@ stopBtn.addEventListener("click", () => {
     if (isRecording) {
         activeNotes.forEach(note => recordEvent("noteOff", note));
         isRecording = false;
+        activeRecordingNoteIds.clear();
     }
     stopPlayback();
     renderRibbon();
@@ -731,38 +1449,63 @@ playBtn.addEventListener("click", () => {
     if (!synth || recordingData.length === 0 || isPlaying) return;
 
     isRecording = false;
+
+    const soloTracksExist = tracks.some(track => track.solo);
+    const playableTrackIds = new Set(
+        tracks
+            .filter(track => !track.muted && (!soloTracksExist || track.solo))
+            .map(track => track.id)
+    );
+    const playbackEvents = recordingData
+        .filter(event => playableTrackIds.has(event.trackId))
+        .flatMap(event => [
+            { event, type: "noteOn", tick: getEventTick(event) },
+            {
+                event,
+                type: "noteOff",
+                tick: getEventTick(event) + getEventDurationTicks(event)
+            }
+        ])
+        .sort((a, b) => (
+            a.tick - b.tick
+            || (a.type === b.type ? 0 : a.type === "noteOff" ? -1 : 1)
+        ));
+
+    if (playbackEvents.length === 0) {
+        setCellActionStatus("No unmuted timeline events are available to play.", true);
+        return;
+    }
+
     isPlaying = true;
     console.log("PLAY");
+    playhead.setRange(0, 100);
+    playhead.start(ticksToMilliseconds(getTimelineLengthTicks()));
 
-    const timelineDuration = getRibbonTimelineDuration();
-    const cellPlaybackDuration = timelineDuration * (ribbonCell.duration / 100);
-    playhead.setRange(ribbonCell.start, ribbonCell.duration);
-    playhead.start(cellPlaybackDuration);
-
-    const playbackEvents = recordingData
-        .map(event => ({
-            event,
-            tick: getEventTick(event)
-        }))
-        .sort((a, b) => a.tick - b.tick);
-
-    playbackEvents.forEach(({ event, tick }, index) => {
+    playbackEvents.forEach(({ event, type, tick }, index) => {
         const timeoutId = setTimeout(() => {
             const keyName = noteToKeyMap[event.note];
 
-            if (event.type === "noteOn") {
-                synth.triggerAttack(event.note);
+            if (type === "noteOn") {
+                synth.set({
+                    oscillator: { type: event.waveform },
+                    envelope: {
+                        attack: event.attack,
+                        decay: event.decay,
+                        sustain: event.sustain,
+                        release: event.release
+                    }
+                });
+                synth.triggerAttack(event.note, undefined, event.velocity);
                 if (keyName) highlightKey(keyName);
-            } else if (event.type === "noteOff") {
+            } else if (type === "noteOff") {
                 synth.triggerRelease(event.note);
                 if (keyName) unhighlightKey(keyName);
             }
 
             if (index === playbackEvents.length - 1) {
                 isPlaying = false;
-                playhead.stop(true);
             }
-        }, ticksToMilliseconds(Math.max(0, tick - ribbonCell.startTick)));
+        }, ticksToMilliseconds(Math.max(0, tick)));
 
         playbackTimeouts.push(timeoutId);
     });
@@ -800,3 +1543,7 @@ document.querySelectorAll("[data-key]").forEach(keyElement => {
         unhighlightKey(physicalKey);
     });
 });
+
+updateCellTransferControls();
+renderCellMemoryBank();
+renderRibbon();
