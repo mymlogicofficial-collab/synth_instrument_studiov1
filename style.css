@@ -257,6 +257,76 @@ button:disabled {
     color: #b42318;
 }
 
+.mixer-panel {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #444;
+    border-radius: 8px;
+    background: #181818;
+}
+
+.mixer-panel h2 {
+    margin: 0 0 10px;
+}
+
+.mixer-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.mixer-group {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding-top: 8px;
+    border-top: 1px solid #444;
+}
+
+.mixer-group-title {
+    flex-basis: 100%;
+    margin: 0;
+    font-size: 0.9rem;
+    letter-spacing: 0.08em;
+}
+
+.mixer-slider-control {
+    display: grid;
+    grid-template-columns: 58px minmax(100px, 1fr) 54px;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.mixer-slider-control label {
+    font-size: 0.9rem;
+}
+
+.mixer-slider-control input[type="range"] {
+    width: 100%;
+    min-width: 0;
+}
+
+.mixer-slider-control output {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.mixer-toggle {
+    min-width: 76px;
+    border: 1px solid #666;
+    border-radius: 4px;
+    background: #222;
+    color: #eee;
+}
+
+.mixer-toggle.active {
+    border-color: #7cc7ff;
+    background: #17364b;
+    color: #bde5ff;
+}
+
 textarea {
     width: 170px;
     resize: vertical;

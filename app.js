@@ -26,6 +26,7 @@ const redoBtn = document.getElementById("redoBtn");
 
 const projectName = document.getElementById("projectName");
 const projectDescription = document.getElementById("projectDescription");
+const mixerControls = document.getElementById("mixerControls");
 
 const saveBtn = document.getElementById("saveBtn");
 const downloadBtn = document.getElementById("downloadBtn");
@@ -55,7 +56,56 @@ const DEFAULT_TEMPO_BPM = 120;
 const DEFAULT_BEATS_PER_BAR = 4;
 const DEFAULT_BEAT_UNIT = 4;
 const DEFAULT_TRACK_ID = "track_1";
-const DEFAULT_TRACK_NAME = "Track 1";
+const DEFAULT_TRACK_NAME = "Lead";
+const mixerPrimitives = [
+    {
+        id: "masterVolume",
+        label: "Volume",
+        group: "master",
+        type: "slider",
+        target: "master.volume",
+        min: 0,
+        max: 1,
+        step: 0.01,
+        format: "percent"
+    },
+    {
+        id: "trackVolume",
+        label: "Volume",
+        group: "track",
+        type: "slider",
+        target: `tracks.${DEFAULT_TRACK_ID}.volume`,
+        min: 0,
+        max: 1,
+        step: 0.01,
+        format: "percent"
+    },
+    {
+        id: "trackPan",
+        label: "Pan",
+        group: "track",
+        type: "slider",
+        target: `tracks.${DEFAULT_TRACK_ID}.pan`,
+        min: -1,
+        max: 1,
+        step: 0.01,
+        format: "pan"
+    },
+    {
+        id: "trackMute",
+        label: "Mute",
+        group: "track",
+        type: "toggle",
+        target: `tracks.${DEFAULT_TRACK_ID}.mute`
+    },
+    {
+        id: "trackSolo",
+        label: "Solo",
+        group: "track",
+        type: "toggle",
+        target: `tracks.${DEFAULT_TRACK_ID}.solo`
+    }
+];
 const ribbonPitchNames = [
     "C3", "C#3", "D3", "D#3", "E3", "F3",
     "F#3", "G3", "G#3", "A3", "A#3", "B3"
@@ -105,6 +155,8 @@ let timelineSelectionIds = new Set();
 let timelineSelectionAnchorTick = null;
 
 let synth;
+let primaryTrackGain;
+let primaryTrackPanner;
 const activeNotes = new Set();
 const activeRecordingNoteIds = new Map();
 
@@ -219,11 +271,19 @@ async function buildSynth() {
         synth.releaseAll();
         synth.dispose();
     }
+    primaryTrackGain?.dispose();
+    primaryTrackPanner?.dispose();
 
     activeNotes.clear();
 
-    synth = new Tone.PolySynth(Tone.Synth).toDestination();
+    synth = new Tone.PolySynth(Tone.Synth);
+    primaryTrackGain = new Tone.Gain(1);
+    primaryTrackPanner = new Tone.Panner(0);
+    synth.connect(primaryTrackGain);
+    primaryTrackGain.connect(primaryTrackPanner);
+    primaryTrackPanner.toDestination();
     applyInstrumentSettingsToSynth();
+    applyPrimaryTrackOutput();
 }
 
 function updateEnvelope() {
@@ -342,8 +402,8 @@ function createDefaultTracks() {
 function defaultTrackMixerSettings(trackId) {
     const isPrimaryTrack = trackId === DEFAULT_TRACK_ID;
     return {
-        volume: isPrimaryTrack ? 0.62 : 0.77,
-        pan: isPrimaryTrack ? -0.2 : 0.1,
+        volume: isPrimaryTrack ? 1 : 0.77,
+        pan: isPrimaryTrack ? 0 : 0.1,
         mute: false,
         solo: false
     };
@@ -351,7 +411,7 @@ function defaultTrackMixerSettings(trackId) {
 
 function createDefaultMixerState(trackList = tracks) {
     return {
-        master: { volume: 0.85 },
+        master: { volume: 0.8 },
         tracks: Object.fromEntries(trackList.map(track => [
             track.id,
             defaultTrackMixerSettings(track.id)
@@ -558,6 +618,8 @@ function loadMixerVersion(versionId) {
     mixerBaselineSnapshot = cloneState(mixerState);
     mixerVersionStore.isDirty = false;
     applyMasterVolume();
+    applyPrimaryTrackOutput();
+    syncMixerControls();
     return true;
 }
 
@@ -1024,6 +1086,7 @@ function setMasterVolume(volume) {
     mixerState.master.volume = Number(volume);
     applyMasterVolume();
     markMixerDirty();
+    syncMixerControls();
 }
 
 function setTrackMixerState(trackId, updates) {
@@ -1058,8 +1121,169 @@ function setTrackMixerState(trackId, updates) {
         next.solo = updates.solo;
     }
     mixerState.tracks[track.id] = next;
+    applyPrimaryTrackOutput();
     markMixerDirty();
+    syncMixerControls();
 }
+
+function resolveMixerPrimitiveTarget(path) {
+    const keys = String(path).split(".");
+    if (keys.length === 2 && keys[0] === "master" && keys[1] === "volume") {
+        return { scope: "master", field: "volume" };
+    }
+    if (
+        keys.length === 3
+        && keys[0] === "tracks"
+        && tracks.some(track => track.id === keys[1])
+        && ["volume", "pan", "mute", "solo"].includes(keys[2])
+    ) {
+        return { scope: "track", trackId: keys[1], field: keys[2] };
+    }
+    throw new RangeError(`Unsupported mixer primitive target "${path}".`);
+}
+
+function getMixerPrimitiveValue(target) {
+    const resolved = resolveMixerPrimitiveTarget(target);
+    return resolved.scope === "master"
+        ? mixerState.master[resolved.field]
+        : mixerState.tracks[resolved.trackId]?.[resolved.field];
+}
+
+function applyPrimitiveTarget(target, value) {
+    const resolved = resolveMixerPrimitiveTarget(target);
+    if (resolved.scope === "master") {
+        setMasterVolume(value);
+        return;
+    }
+    setTrackMixerState(resolved.trackId, { [resolved.field]: value });
+}
+
+function setPrimitiveValue(id, value) {
+    const primitive = mixerPrimitives.find(candidate => candidate.id === id);
+    if (!primitive) throw new RangeError(`Unknown mixer primitive "${id}".`);
+    let normalizedValue = value;
+    if (primitive.type === "slider") {
+        normalizedValue = Number(value);
+        if (
+            !Number.isFinite(normalizedValue)
+            || normalizedValue < primitive.min
+            || normalizedValue > primitive.max
+        ) {
+            throw new RangeError(`${primitive.label} must be between ${primitive.min} and ${primitive.max}.`);
+        }
+    } else if (primitive.type === "toggle" && typeof value !== "boolean") {
+        throw new TypeError(`${primitive.label} must be a boolean.`);
+    }
+    applyPrimitiveTarget(primitive.target, normalizedValue);
+}
+
+function formatMixerPrimitiveValue(primitive, value) {
+    if (primitive.format === "percent") return `${Math.round(value * 100)}%`;
+    if (primitive.format === "pan") {
+        if (value === 0) return "C";
+        return value < 0
+            ? `L ${Math.round(Math.abs(value) * 100)}%`
+            : `R ${Math.round(value * 100)}%`;
+    }
+    return String(value);
+}
+
+function renderMixerControls() {
+    if (!mixerControls) return;
+    mixerControls.replaceChildren();
+    const groups = [
+        { id: "master", title: "MASTER" },
+        {
+            id: "track",
+            title: tracks.find(track => track.id === DEFAULT_TRACK_ID)?.name.toUpperCase() || "TRACK"
+        }
+    ];
+
+    groups.forEach(group => {
+        const groupElement = document.createElement("section");
+        groupElement.className = "mixer-group";
+        const heading = document.createElement("h3");
+        heading.className = "mixer-group-title";
+        heading.textContent = group.title;
+        groupElement.append(heading);
+
+        mixerPrimitives
+            .filter(primitive => primitive.group === group.id)
+            .forEach(primitive => {
+                if (primitive.type === "slider") {
+                    const control = document.createElement("div");
+                    control.className = "mixer-slider-control";
+                    const label = document.createElement("label");
+                    label.htmlFor = `mixer-${primitive.id}`;
+                    label.textContent = primitive.label;
+                    const input = document.createElement("input");
+                    input.id = `mixer-${primitive.id}`;
+                    input.type = "range";
+                    input.min = String(primitive.min);
+                    input.max = String(primitive.max);
+                    input.step = String(primitive.step);
+                    input.dataset.mixerPrimitive = primitive.id;
+                    const output = document.createElement("output");
+                    output.htmlFor = input.id;
+                    output.dataset.mixerValue = primitive.id;
+                    control.append(label, input, output);
+                    groupElement.append(control);
+                    return;
+                }
+
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "mixer-toggle";
+                button.dataset.mixerPrimitive = primitive.id;
+                button.setAttribute("aria-pressed", "false");
+                button.textContent = primitive.label;
+                groupElement.append(button);
+            });
+
+        mixerControls.append(groupElement);
+    });
+    syncMixerControls();
+}
+
+function syncMixerControls() {
+    if (!mixerControls) return;
+    mixerPrimitives.forEach(primitive => {
+        const value = getMixerPrimitiveValue(primitive.target);
+        const control = mixerControls.querySelector(`[data-mixer-primitive="${primitive.id}"]`);
+        if (!control) return;
+        if (primitive.type === "slider") {
+            control.value = String(value);
+            const output = mixerControls.querySelector(`[data-mixer-value="${primitive.id}"]`);
+            if (output) output.value = formatMixerPrimitiveValue(primitive, value);
+            return;
+        }
+        control.setAttribute("aria-pressed", String(value));
+        control.classList.toggle("active", value);
+    });
+}
+
+function applyPrimaryTrackOutput() {
+    if (!primaryTrackGain || !primaryTrackPanner) return;
+    const settings = mixerState.tracks[DEFAULT_TRACK_ID] || defaultTrackMixerSettings(DEFAULT_TRACK_ID);
+    const hasSolo = tracks.some(track => mixerState.tracks[track.id]?.solo);
+    const audible = !settings.mute && (!hasSolo || settings.solo);
+    primaryTrackGain.gain.value = audible ? settings.volume : 0;
+    primaryTrackPanner.pan.value = settings.pan;
+}
+
+mixerControls?.addEventListener("input", event => {
+    const control = event.target.closest("[data-mixer-primitive]");
+    if (!control || control.type !== "range") return;
+    setPrimitiveValue(control.dataset.mixerPrimitive, control.value);
+});
+
+mixerControls?.addEventListener("click", event => {
+    const control = event.target.closest("button[data-mixer-primitive]");
+    if (!control) return;
+    const primitive = mixerPrimitives.find(candidate => candidate.id === control.dataset.mixerPrimitive);
+    if (!primitive || primitive.type !== "toggle") return;
+    setPrimitiveValue(primitive.id, getMixerPrimitiveValue(primitive.target) !== true);
+});
 
 function setTrackVolume(trackId, volume) {
     setTrackMixerState(trackId, { volume });
@@ -1317,6 +1541,8 @@ function loadProject(data, options = {}) {
     mixerVersionStore = normalizeMixerVersionStore(data.mixerVersionStore);
     mixerBaselineSnapshot = cloneState(mixerState);
     mixerVersionStore.isDirty = false;
+    applyPrimaryTrackOutput();
+    renderMixerControls();
     fxChains = Array.isArray(compositionData.fxChains)
         ? cloneState(compositionData.fxChains)
         : [];
@@ -1348,6 +1574,8 @@ function importProject(data) {
         mixerVersionStore = normalizeMixerVersionStore(previousMixerVersionStore);
         mixerBaselineSnapshot = previousMixerBaseline;
         applyMasterVolume();
+        applyPrimaryTrackOutput();
+        renderMixerControls();
         throw error;
     }
     recordCompositionTransaction("IMPORT_PROJECT", "Import Project", before);
@@ -2296,4 +2524,5 @@ document.querySelectorAll("[data-key]").forEach(keyElement => {
 
 updateCellTransferControls();
 renderCellMemoryBank();
+renderMixerControls();
 renderRibbon();
