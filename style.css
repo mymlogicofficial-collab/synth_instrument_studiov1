@@ -319,6 +319,14 @@ textarea {
     transform: translateY(-50%);
 }
 
+.ribbon-note-plot {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+}
+
 .ribbon-time-tick {
     position: absolute;
     top: 0;
@@ -328,6 +336,10 @@ textarea {
     background: rgba(255, 255, 255, 0.18);
     pointer-events: none;
     z-index: 1;
+}
+
+.ribbon-time-tick.beat {
+    background: rgba(255, 255, 255, 0.38);
 }
 
 .ribbon-cell {

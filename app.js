@@ -32,6 +32,10 @@ const importBtn = document.getElementById("importBtn");
 const importFile = document.getElementById("importFile");
 
 const ribbon = document.getElementById("ribbon");
+const SIS_TICKS_PER_QUARTER = 960;
+const DEFAULT_TEMPO_BPM = 120;
+const DEFAULT_BEATS_PER_BAR = 4;
+const DEFAULT_BEAT_UNIT = 4;
 const ribbonPitchNames = [
     "C3", "C#3", "D3", "D#3", "E3", "F3",
     "F#3", "G3", "G#3", "A3", "A#3", "B3"
@@ -46,10 +50,15 @@ let recordingData = [];
 let playbackTimeouts = [];
 let regionCount = 4;
 let ribbonNotes = [];
+let tempoBpm = DEFAULT_TEMPO_BPM;
+let beatsPerBar = DEFAULT_BEATS_PER_BAR;
+let beatUnit = DEFAULT_BEAT_UNIT;
 let ribbonCell = {
     id: "ribbon-cell-1",
     start: 0,
     duration: 25,
+    startTick: 0,
+    lengthTicks: SIS_TICKS_PER_QUARTER * DEFAULT_BEATS_PER_BAR,
     selected: true
 };
 
@@ -225,6 +234,12 @@ function buildProjectData() {
         release: Number(releaseSlider.value),
         duration: durationSlider ? Number(durationSlider.value) : 1,
         regionCount: regionCount,
+        timing: {
+            tempoBpm: tempoBpm,
+            beatsPerBar: beatsPerBar,
+            beatUnit: beatUnit,
+            ticksPerQuarter: SIS_TICKS_PER_QUARTER
+        },
         recordingData: recordingData,
         ribbonCell: ribbonCell
     };
@@ -247,10 +262,12 @@ function unhighlightKey(keyName) {
 function recordEvent(type, note) {
     if (!isRecording) return;
 
+    const time = performance.now() - recordingStart;
     recordingData.push({
         type: type,
         note: note,
-        time: performance.now() - recordingStart
+        time: time,
+        tick: Math.round((time * tempoBpm * SIS_TICKS_PER_QUARTER) / 60000)
     });
 
     console.log(recordingData);
@@ -273,6 +290,20 @@ function loadProject(data) {
     releaseValue.textContent = releaseSlider.value;
     if (durationValue) durationValue.textContent = durationSlider?.value ?? "1";
 
+    const timing = data.timing || {};
+    const loadedTempo = Number(timing.tempoBpm);
+    const loadedBeatsPerBar = Number(timing.beatsPerBar);
+    const loadedBeatUnit = Number(timing.beatUnit);
+    tempoBpm = Number.isFinite(loadedTempo) && loadedTempo > 0
+        ? loadedTempo
+        : DEFAULT_TEMPO_BPM;
+    beatsPerBar = Number.isInteger(loadedBeatsPerBar) && loadedBeatsPerBar > 0
+        ? loadedBeatsPerBar
+        : DEFAULT_BEATS_PER_BAR;
+    beatUnit = Number.isInteger(loadedBeatUnit) && loadedBeatUnit > 0
+        ? loadedBeatUnit
+        : DEFAULT_BEAT_UNIT;
+
     regionCount = Math.max(1, Number(data.regionCount) || 4);
     recordingData = data.recordingData || [];
     ribbonCell = data.ribbonCell
@@ -280,9 +311,22 @@ function loadProject(data) {
             id: "ribbon-cell-1",
             start: Number(data.ribbonCell.start) || 0,
             duration: Math.max(1, Number(data.ribbonCell.duration) || 25),
+            startTick: Math.max(0, Math.round(Number(data.ribbonCell.startTick) || 0)),
+            lengthTicks: Math.max(
+                1,
+                Math.round(Number(data.ribbonCell.lengthTicks) ||
+                    (SIS_TICKS_PER_QUARTER * beatsPerBar * 4) / beatUnit)
+            ),
             selected: data.ribbonCell.selected !== false
         }
-        : { id: "ribbon-cell-1", start: 0, duration: 25, selected: true };
+        : {
+            id: "ribbon-cell-1",
+            start: 0,
+            duration: 25,
+            startTick: 0,
+            lengthTicks: (SIS_TICKS_PER_QUARTER * beatsPerBar * 4) / beatUnit,
+            selected: true
+        };
 
     waveformSelect.dispatchEvent(new Event("change"));
     updateEnvelope();
@@ -394,11 +438,13 @@ function renderRibbonCell() {
     cell.style.left = `${ribbonCell.start}%`;
     cell.style.width = `${ribbonCell.duration}%`;
     if (ribbonCell.selected) cell.classList.add("selected");
+    ribbon.appendChild(cell);
 
-    const innerWidth = Math.max(1, cell.clientWidth - ribbonCellBorderSize * 2);
     const innerHeight = Math.max(1, cell.clientHeight - ribbonCellBorderSize * 2);
-    const plotWidth = Math.max(1, innerWidth - ribbonPitchGutterWidth);
     const laneHeight = innerHeight / ribbonPitchNames.length;
+    const plot = document.createElement("div");
+    plot.className = "ribbon-note-plot";
+    plot.style.left = `${ribbonPitchGutterWidth}px`;
 
     [...ribbonPitchNames].reverse().forEach((pitch, row) => {
         const lane = document.createElement("div");
@@ -414,12 +460,23 @@ function renderRibbonCell() {
         cell.appendChild(lane);
     });
 
-    for (let division = 1; division < 4; division++) {
-        const tick = document.createElement("div");
-        tick.className = "ribbon-time-tick";
-        tick.style.left = `${ribbonPitchGutterWidth + (plotWidth * division) / 4}px`;
-        cell.appendChild(tick);
+    const cellEndTick = ribbonCell.startTick + ribbonCell.lengthTicks;
+    const sixteenthTicks = SIS_TICKS_PER_QUARTER / 4;
+    for (
+        let tickValue = ribbonCell.startTick + sixteenthTicks;
+        tickValue < cellEndTick;
+        tickValue += sixteenthTicks
+    ) {
+        const tickElement = document.createElement("div");
+        tickElement.className = "ribbon-time-tick";
+        const tickPosition = (tickValue - ribbonCell.startTick) / ribbonCell.lengthTicks;
+        tickElement.style.left = `${tickPosition * 100}%`;
+        if ((tickValue - ribbonCell.startTick) % SIS_TICKS_PER_QUARTER === 0) {
+            tickElement.classList.add("beat");
+        }
+        plot.appendChild(tickElement);
     }
+    cell.appendChild(plot);
 
     const selectCell = () => {
         ribbonCell.selected = true;
@@ -436,8 +493,7 @@ function renderRibbonCell() {
         }
     });
 
-    ribbon.appendChild(cell);
-    return cell;
+    return plot;
 }
 
 function renderRegions(count = regionCount) {
@@ -468,7 +524,7 @@ function renderRibbon() {
     ribbon.innerHTML = "";
     renderRegions(regionCount);
     playhead.ensureEl();
-    const cell = renderRibbonCell();
+    const plot = renderRibbonCell();
     playhead.setRange(ribbonCell.start, ribbonCell.duration);
 
     if (recordingData.length === 0) {
@@ -482,52 +538,47 @@ function renderRibbon() {
         return;
     }
 
-    const timelineDuration = getRibbonTimelineDuration(ribbonNotes);
-    const cellInnerWidth = Math.max(
-        1,
-        cell.clientWidth - ribbonCellBorderSize * 2
-    );
-    const plotWidth = Math.max(1, cellInnerWidth - ribbonPitchGutterWidth);
-    const laneHeight = Math.max(
-        1,
-        cell.clientHeight - ribbonCellBorderSize * 2
-    ) / ribbonPitchNames.length;
+    const cellStartTick = ribbonCell.startTick;
+    const cellEndTick = cellStartTick + ribbonCell.lengthTicks;
 
     ribbonNotes.forEach(note => {
+        const noteStartTick = note.startTick;
+        const noteEndTick = noteStartTick + note.durationTicks;
+        const visibleStartTick = Math.max(cellStartTick, noteStartTick);
+        const visibleEndTick = Math.min(cellEndTick, noteEndTick);
+        if (visibleEndTick <= visibleStartTick) return;
+
         const block = document.createElement("div");
         block.className = "ribbon-block";
         if (note.note.includes("#")) block.classList.add("sharp");
         block.dataset.note = note.note;
-        block.dataset.start = String(note.start);
-        block.dataset.duration = String(note.duration);
-        block.title = `${note.note} - Start: ${note.start.toFixed(0)} ms - Duration: ${note.duration.toFixed(0)} ms`;
+        block.dataset.startTick = String(note.startTick);
+        block.dataset.durationTicks = String(note.durationTicks);
+        block.title = `${note.note} - Start: ${note.startTick} ticks - Duration: ${note.durationTicks} ticks`;
         block.setAttribute(
             "aria-label",
-            `${note.note} note, starts at ${note.start.toFixed(0)} milliseconds, duration ${note.duration.toFixed(0)} milliseconds`
+            `${note.note} note, starts at tick ${note.startTick}, duration ${note.durationTicks} ticks`
         );
         block.setAttribute("role", "img");
 
         block.classList.add("inside-cell");
 
-        const startRatio = Math.min(1, Math.max(0, note.start / timelineDuration));
-        const durationRatio = Math.min(
-            1 - startRatio,
-            Math.max(0, note.duration / timelineDuration)
-        );
+        const startRatio = (visibleStartTick - cellStartTick) / ribbonCell.lengthTicks;
+        const durationRatio = (visibleEndTick - visibleStartTick) / ribbonCell.lengthTicks;
         const pitchIndex = ribbonPitchNames.indexOf(note.note);
         const row = pitchIndex === -1
             ? 0
             : ribbonPitchNames.length - 1 - pitchIndex;
 
-        block.style.left = `${ribbonPitchGutterWidth + plotWidth * startRatio}px`;
-        block.style.width = `${plotWidth * durationRatio}px`;
-        block.style.top = `${row * laneHeight}px`;
-        block.style.height = `${laneHeight}px`;
-        if (plotWidth * durationRatio >= 24) {
+        block.style.left = `${startRatio * 100}%`;
+        block.style.width = `${durationRatio * 100}%`;
+        block.style.top = `${(row / ribbonPitchNames.length) * 100}%`;
+        block.style.height = `${100 / ribbonPitchNames.length}%`;
+        if (plot.clientWidth * durationRatio >= 24) {
             block.textContent = note.note;
         }
 
-        cell.appendChild(block);
+        plot.appendChild(block);
     });
 
     playhead.reset();
@@ -539,15 +590,22 @@ function buildRibbonNotes() {
 
     recordingData.forEach(event => {
         if (event.type === "noteOn") {
-            active[event.note] = event.time;
+            active[event.note] = {
+                time: Number(event.time),
+                tick: getEventTick(event)
+            };
         }
 
         if (event.type === "noteOff" && active[event.note] !== undefined) {
+            const start = active[event.note];
+            const endTick = getEventTick(event);
             notes.push({
                 id: crypto.randomUUID(),
                 note: event.note,
-                start: active[event.note],
-                duration: event.time - active[event.note]
+                start: start.time,
+                duration: Number(event.time) - start.time,
+                startTick: start.tick,
+                durationTicks: Math.max(1, endTick - start.tick)
             });
 
             delete active[event.note];
@@ -555,6 +613,17 @@ function buildRibbonNotes() {
     });
 
     return notes;
+}
+
+function getEventTick(event) {
+    const storedTick = Number(event.tick);
+    if (Number.isFinite(storedTick) && storedTick >= 0) {
+        return Math.round(storedTick);
+    }
+
+    const time = Number(event.time);
+    if (!Number.isFinite(time) || time < 0) return 0;
+    return Math.round((time * tempoBpm * SIS_TICKS_PER_QUARTER) / 60000);
 }
 
 function getRibbonTimelineDuration(notes = buildRibbonNotes()) {
