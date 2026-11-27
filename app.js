@@ -626,6 +626,10 @@ function getEventTick(event) {
     return Math.round((time * tempoBpm * SIS_TICKS_PER_QUARTER) / 60000);
 }
 
+function ticksToMilliseconds(ticks) {
+    return (ticks * 60000) / (tempoBpm * SIS_TICKS_PER_QUARTER);
+}
+
 function getRibbonTimelineDuration(notes = buildRibbonNotes()) {
     return Math.max(1, ...notes.map(note => note.start + note.duration));
 }
@@ -738,14 +742,11 @@ playBtn.addEventListener("click", () => {
     const playbackEvents = recordingData
         .map(event => ({
             event,
-            time: Math.min(
-                cellPlaybackDuration,
-                Math.max(0, (event.time / timelineDuration) * cellPlaybackDuration)
-            )
+            tick: getEventTick(event)
         }))
-        .sort((a, b) => a.time - b.time);
+        .sort((a, b) => a.tick - b.tick);
 
-    playbackEvents.forEach(({ event, time }, index) => {
+    playbackEvents.forEach(({ event, tick }, index) => {
         const timeoutId = setTimeout(() => {
             const keyName = noteToKeyMap[event.note];
 
@@ -761,7 +762,7 @@ playBtn.addEventListener("click", () => {
                 isPlaying = false;
                 playhead.stop(true);
             }
-        }, time);
+        }, ticksToMilliseconds(Math.max(0, tick - ribbonCell.startTick)));
 
         playbackTimeouts.push(timeoutId);
     });
