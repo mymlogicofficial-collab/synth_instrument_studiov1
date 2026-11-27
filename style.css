@@ -98,6 +98,50 @@ button:disabled {
     opacity: 0.5;
 }
 
+.bank1-controller {
+    margin: 18px 0;
+}
+
+.bank1-octave-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0;
+}
+
+.bank1-octave-control output {
+    min-width: 1.5em;
+    text-align: center;
+    font-weight: bold;
+}
+
+#bank1Range {
+    min-width: 64px;
+}
+
+.bank1-drum-slots {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 6px 12px;
+    margin-top: 12px;
+}
+
+.bank1-drum-slot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.bank1-drum-slot select {
+    min-width: 0;
+    max-width: 160px;
+}
+
+#keymap {
+    white-space: pre-line;
+}
+
 #piano {
     width: 406px;
     max-width: 100%;
@@ -421,6 +465,13 @@ textarea {
     font-size: 10px;
     font-weight: bold;
     white-space: nowrap;
+}
+
+.ribbon-block.drum-event {
+    min-width: 3px;
+    background: #f2b84b;
+    border-color: #ffe0a0;
+    box-shadow: 0 0 8px rgba(242, 184, 75, 0.65);
 }
 
 .ribbon-block.selected {

@@ -113,15 +113,28 @@
             U=B3
         </div>
 
-        <div class="control">
-            <label for="waveform">Waveform</label>
-            <select id="waveform">
-                <option value="sine">Sine</option>
-                <option value="square">Square</option>
-                <option value="sawtooth">Sawtooth</option>
-                <option value="triangle">Triangle</option>
-            </select>
-        </div>
+        <section class="bank1-controller" aria-labelledby="bank1Heading">
+            <h2 id="bank1Heading">Bank 1</h2>
+            <div class="control">
+                <label for="bank1Instrument">Instrument</label>
+                <select id="bank1Instrument">
+                    <option value="sine">Sine</option>
+                    <option value="square">Square</option>
+                    <option value="saw">Saw</option>
+                    <option value="triangle">Triangle</option>
+                    <option value="noise">Noise</option>
+                    <option value="drumkit">Drum Kit</option>
+                </select>
+            </div>
+            <div class="bank1-octave-control">
+                <span>Octave</span>
+                <button type="button" id="bank1OctaveDown" aria-label="Lower Bank 1 octave">-</button>
+                <output id="bank1OctaveValue" aria-live="polite">4</output>
+                <button type="button" id="bank1OctaveUp" aria-label="Raise Bank 1 octave">+</button>
+                <span id="bank1Range" aria-live="polite">C4-B4</span>
+            </div>
+            <div id="bank1DrumSlots" class="bank1-drum-slots" hidden></div>
+        </section>
 
         <div class="control">
             <label for="attack">Attack</label>
@@ -178,8 +191,6 @@
         <h2>Timing Ribbon</h2>
 
 <div id="ribbon"></div>
-
-<h2>Bank 1 • C3 - B3</h2>
 
         </div>
 

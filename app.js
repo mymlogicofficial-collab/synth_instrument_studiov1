@@ -14,7 +14,12 @@ const durationSlider = document.getElementById("duration");
 const durationValue = document.getElementById("durationValue");
 
 const startBtn = document.getElementById("startBtn");
-const waveformSelect = document.getElementById("waveform");
+const bank1InstrumentSelect = document.getElementById("bank1Instrument");
+const bank1OctaveDownBtn = document.getElementById("bank1OctaveDown");
+const bank1OctaveUpBtn = document.getElementById("bank1OctaveUp");
+const bank1OctaveValue = document.getElementById("bank1OctaveValue");
+const bank1RangeLabel = document.getElementById("bank1Range");
+const bank1DrumSlots = document.getElementById("bank1DrumSlots");
 
 const recordBtn = document.getElementById("recordBtn");
 const playBtn = document.getElementById("playBtn");
@@ -57,6 +62,101 @@ const DEFAULT_BEATS_PER_BAR = 4;
 const DEFAULT_BEAT_UNIT = 4;
 const DEFAULT_TRACK_ID = "track_1";
 const DEFAULT_TRACK_NAME = "Lead";
+const BANK1_MIN_OCTAVE = 1;
+const BANK1_MAX_OCTAVE = 8;
+const BANK1_PITCH_CLASSES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const BANK1_INSTRUMENTS = [
+    { id: "sine", label: "Sine" },
+    { id: "square", label: "Square" },
+    { id: "saw", label: "Saw" },
+    { id: "triangle", label: "Triangle" },
+    { id: "noise", label: "Noise" },
+    { id: "drumkit", label: "Drum Kit" }
+];
+const BANK1_WAVEFORM_BY_INSTRUMENT = {
+    sine: "sine",
+    square: "square",
+    saw: "sawtooth",
+    triangle: "triangle"
+};
+const BANK1_INSTRUMENT_BY_WAVEFORM = {
+    sine: "sine",
+    square: "square",
+    sawtooth: "saw",
+    triangle: "triangle"
+};
+const BANK1_DRUM_SOUNDS = [
+    { id: "gm_35_acoustic_bass_drum", label: "Acoustic Bass Drum", midiNote: 35, family: "membrane" },
+    { id: "gm_36_bass_drum_1", label: "Bass Drum 1", midiNote: 36, family: "membrane" },
+    { id: "gm_37_side_stick", label: "Side Stick", midiNote: 37, family: "noise" },
+    { id: "gm_38_acoustic_snare", label: "Acoustic Snare", midiNote: 38, family: "noise" },
+    { id: "gm_39_hand_clap", label: "Hand Clap", midiNote: 39, family: "noise" },
+    { id: "gm_40_electric_snare", label: "Electric Snare", midiNote: 40, family: "noise" },
+    { id: "gm_41_low_floor_tom", label: "Low Floor Tom", midiNote: 41, family: "membrane" },
+    { id: "gm_42_closed_hi_hat", label: "Closed Hi-Hat", midiNote: 42, family: "metal" },
+    { id: "gm_43_high_floor_tom", label: "High Floor Tom", midiNote: 43, family: "membrane" },
+    { id: "gm_44_pedal_hi_hat", label: "Pedal Hi-Hat", midiNote: 44, family: "metal" },
+    { id: "gm_45_low_tom", label: "Low Tom", midiNote: 45, family: "membrane" },
+    { id: "gm_46_open_hi_hat", label: "Open Hi-Hat", midiNote: 46, family: "metal" },
+    { id: "gm_47_low_mid_tom", label: "Low-Mid Tom", midiNote: 47, family: "membrane" },
+    { id: "gm_48_high_mid_tom", label: "High-Mid Tom", midiNote: 48, family: "membrane" },
+    { id: "gm_49_crash_cymbal_1", label: "Crash Cymbal 1", midiNote: 49, family: "metal" },
+    { id: "gm_50_high_tom", label: "High Tom", midiNote: 50, family: "membrane" },
+    { id: "gm_51_ride_cymbal_1", label: "Ride Cymbal 1", midiNote: 51, family: "metal" },
+    { id: "gm_52_chinese_cymbal", label: "Chinese Cymbal", midiNote: 52, family: "metal" },
+    { id: "gm_53_ride_bell", label: "Ride Bell", midiNote: 53, family: "metal" },
+    { id: "gm_54_tambourine", label: "Tambourine", midiNote: 54, family: "metal" },
+    { id: "gm_55_splash_cymbal", label: "Splash Cymbal", midiNote: 55, family: "metal" },
+    { id: "gm_56_cowbell", label: "Cowbell", midiNote: 56, family: "metal" },
+    { id: "gm_57_crash_cymbal_2", label: "Crash Cymbal 2", midiNote: 57, family: "metal" },
+    { id: "gm_58_vibraslap", label: "Vibraslap", midiNote: 58, family: "noise" },
+    { id: "gm_59_ride_cymbal_2", label: "Ride Cymbal 2", midiNote: 59, family: "metal" },
+    { id: "gm_60_high_bongo", label: "High Bongo", midiNote: 60, family: "membrane" },
+    { id: "gm_61_low_bongo", label: "Low Bongo", midiNote: 61, family: "membrane" },
+    { id: "gm_62_mute_high_conga", label: "Mute High Conga", midiNote: 62, family: "membrane" },
+    { id: "gm_63_open_high_conga", label: "Open High Conga", midiNote: 63, family: "membrane" },
+    { id: "gm_64_low_conga", label: "Low Conga", midiNote: 64, family: "membrane" },
+    { id: "gm_65_high_timbale", label: "High Timbale", midiNote: 65, family: "membrane" },
+    { id: "gm_66_low_timbale", label: "Low Timbale", midiNote: 66, family: "membrane" },
+    { id: "gm_67_high_agogo", label: "High Agogo", midiNote: 67, family: "tone" },
+    { id: "gm_68_low_agogo", label: "Low Agogo", midiNote: 68, family: "tone" },
+    { id: "gm_69_cabasa", label: "Cabasa", midiNote: 69, family: "noise" },
+    { id: "gm_70_maracas", label: "Maracas", midiNote: 70, family: "noise" },
+    { id: "gm_71_short_whistle", label: "Short Whistle", midiNote: 71, family: "tone" },
+    { id: "gm_72_long_whistle", label: "Long Whistle", midiNote: 72, family: "tone" },
+    { id: "gm_73_short_guiro", label: "Short Guiro", midiNote: 73, family: "noise" },
+    { id: "gm_74_long_guiro", label: "Long Guiro", midiNote: 74, family: "noise" },
+    { id: "gm_75_claves", label: "Claves", midiNote: 75, family: "tone" },
+    { id: "gm_76_high_wood_block", label: "High Wood Block", midiNote: 76, family: "tone" },
+    { id: "gm_77_low_wood_block", label: "Low Wood Block", midiNote: 77, family: "tone" },
+    { id: "gm_78_mute_cuica", label: "Mute Cuica", midiNote: 78, family: "tone" },
+    { id: "gm_79_open_cuica", label: "Open Cuica", midiNote: 79, family: "tone" },
+    { id: "gm_80_mute_triangle", label: "Mute Triangle", midiNote: 80, family: "metal" },
+    { id: "gm_81_open_triangle", label: "Open Triangle", midiNote: 81, family: "metal" },
+    { id: "gm_82_shaker", label: "Shaker", midiNote: 82, family: "noise" },
+    { id: "gm_83_jingle_bell", label: "Jingle Bell", midiNote: 83, family: "metal" },
+    { id: "gm_84_bell_tree", label: "Bell Tree", midiNote: 84, family: "metal" }
+];
+const BANK1_DRUM_SLOTS = [
+    { id: "pad_01", keys: ["w"], defaultSoundId: "gm_46_open_hi_hat" },
+    { id: "pad_02", keys: ["s"], defaultSoundId: "gm_42_closed_hi_hat" },
+    { id: "pad_03", keys: ["e"], defaultSoundId: "gm_56_cowbell" },
+    { id: "pad_04", keys: ["3"], defaultSoundId: "gm_51_ride_cymbal_1" },
+    { id: "pad_05", keys: ["r"], defaultSoundId: "gm_50_high_tom" },
+    { id: "pad_06", keys: ["t"], defaultSoundId: "gm_47_low_mid_tom" },
+    { id: "pad_07", keys: ["y"], defaultSoundId: "gm_45_low_tom" },
+    { id: "pad_08", keys: ["7"], defaultSoundId: "gm_49_crash_cymbal_1" },
+    { id: "pad_09", keys: ["d"], defaultSoundId: "gm_38_acoustic_snare" },
+    { id: "pad_10", keys: ["f"], defaultSoundId: "gm_37_side_stick" },
+    { id: "pad_11", keys: ["h"], defaultSoundId: "gm_41_low_floor_tom" },
+    { id: "pad_12", keys: ["v", "b"], defaultSoundId: "gm_36_bass_drum_1" }
+];
+const BANK1_DRUM_KEY_BINDINGS = Object.fromEntries(
+    BANK1_DRUM_SLOTS.flatMap(slot => slot.keys.map(key => [key, slot.id]))
+);
+const DEFAULT_BANK1_DRUM_ASSIGNMENTS = Object.fromEntries(
+    BANK1_DRUM_SLOTS.map(slot => [slot.id, slot.defaultSoundId])
+);
 const MASTER_MIN_DBFS = -60;
 const MASTER_MAX_DBFS = -6;
 const DEFAULT_MASTER_DBFS = -30;
@@ -112,11 +212,6 @@ const mixerPrimitives = [
         target: `tracks.${DEFAULT_TRACK_ID}.solo`
     }
 ];
-const ribbonPitchNames = [
-    "C3", "C#3", "D3", "D#3", "E3", "F3",
-    "F#3", "G3", "G#3", "A3", "A#3", "B3"
-];
-const ribbonPitchGutterWidth = 22;
 const CELL_NAMES = ["A", "B", "C", "D"];
 
 let isRecording = false;
@@ -134,6 +229,11 @@ let beatUnit = DEFAULT_BEAT_UNIT;
 let tracks = createDefaultTracks();
 let cellMemories = createEmptyCellMemories();
 let selectedCellMemoryId = cellMemories[0].id;
+let bank1 = { instrument: "sine", octave: 4 };
+let bank1DrumKit = {
+    schemaVersion: 1,
+    assignments: { ...DEFAULT_BANK1_DRUM_ASSIGNMENTS }
+};
 let mixerState = createDefaultMixerState(tracks);
 let mixerVersionStore = {
     activeVersion: null,
@@ -145,7 +245,7 @@ let mixerBaselineSnapshot = cloneState(mixerState);
 let instrumentSettings = {
     id: "instrument_1",
     trackId: DEFAULT_TRACK_ID,
-    waveform: waveformSelect.value,
+    waveform: "sine",
     attack: Number(attackSlider.value),
     decay: Number(decaySlider.value),
     sustain: Number(sustainSlider.value),
@@ -161,9 +261,14 @@ let timelineSelectionIds = new Set();
 let timelineSelectionAnchorTick = null;
 
 let synth;
+const pitchedSynths = new Map();
 let primaryTrackGain;
 let primaryTrackPanner;
-const activeNotes = new Set();
+let masterOutputGain;
+const activeNotes = new Map();
+const activeNoiseVoices = new Map();
+const managedGeneratedVoices = new Map();
+const activeBank1Inputs = new Map();
 const activeRecordingNoteIds = new Map();
 
 const keyMap = {
@@ -184,6 +289,7 @@ const keyMap = {
 const noteToKeyMap = Object.fromEntries(
     Object.entries(keyMap).map(([k, v]) => [v, k])
 );
+const ribbonPitchGutterWidth = 32;
 
 const playhead = (() => {
     let rafId = null;
@@ -273,55 +379,68 @@ const playhead = (() => {
 })();
 
 async function buildSynth() {
-    if (synth) {
-        synth.releaseAll();
-        synth.dispose();
-    }
+    disposeGeneratedVoices();
+    pitchedSynths.forEach(instrumentSynth => {
+        instrumentSynth.releaseAll();
+        instrumentSynth.dispose();
+    });
+    pitchedSynths.clear();
     primaryTrackGain?.dispose();
     primaryTrackPanner?.dispose();
+    masterOutputGain?.dispose();
 
     activeNotes.clear();
+    activeNoiseVoices.clear();
 
-    synth = new Tone.PolySynth(Tone.Synth);
     primaryTrackGain = new Tone.Gain(1);
     primaryTrackPanner = new Tone.Panner(0);
-    synth.connect(primaryTrackGain);
+    masterOutputGain = new Tone.Gain(mixerState.master.volume);
+    ["sine", "square", "sawtooth", "triangle"].forEach(waveform => {
+        const instrumentSynth = new Tone.PolySynth(Tone.Synth);
+        instrumentSynth.set({ oscillator: { type: waveform } });
+        instrumentSynth.connect(primaryTrackGain);
+        pitchedSynths.set(waveform, instrumentSynth);
+    });
+    synth = pitchedSynths.get(BANK1_WAVEFORM_BY_INSTRUMENT[bank1.instrument]) || pitchedSynths.get("sine");
     primaryTrackGain.connect(primaryTrackPanner);
-    primaryTrackPanner.toDestination();
+    primaryTrackPanner.connect(masterOutputGain);
+    masterOutputGain.toDestination();
     applyInstrumentSettingsToSynth();
     applyPrimaryTrackOutput();
 }
 
 function updateEnvelope() {
-    if (!synth) return;
-    synth.set({
-        envelope: {
-            attack: instrumentSettings.attack,
-            decay: instrumentSettings.decay,
-            sustain: instrumentSettings.sustain,
-            release: instrumentSettings.release
-        }
+    pitchedSynths.forEach(instrumentSynth => {
+        instrumentSynth.set({
+            envelope: {
+                attack: instrumentSettings.attack,
+                decay: instrumentSettings.decay,
+                sustain: instrumentSettings.sustain,
+                release: instrumentSettings.release
+            }
+        });
     });
 }
 
 function applyInstrumentSettingsToSynth() {
-    if (!synth) return;
-    synth.set({
-        oscillator: { type: instrumentSettings.waveform },
-        envelope: {
-            attack: instrumentSettings.attack,
-            decay: instrumentSettings.decay,
-            sustain: instrumentSettings.sustain,
-            release: instrumentSettings.release
-        }
+    pitchedSynths.forEach((instrumentSynth, waveform) => {
+        instrumentSynth.set({
+            oscillator: { type: waveform },
+            envelope: {
+                attack: instrumentSettings.attack,
+                decay: instrumentSettings.decay,
+                sustain: instrumentSettings.sustain,
+                release: instrumentSettings.release
+            }
+        });
     });
+    synth = pitchedSynths.get(BANK1_WAVEFORM_BY_INSTRUMENT[bank1.instrument]) || pitchedSynths.get("sine");
     applyMasterVolume();
 }
 
 function syncInstrumentSettingsFromControls() {
     instrumentSettings = {
         ...instrumentSettings,
-        waveform: waveformSelect.value,
         attack: Number(attackSlider.value),
         decay: Number(decaySlider.value),
         sustain: Number(sustainSlider.value),
@@ -337,7 +456,7 @@ function beginInstrumentEdit() {
 }
 
 function updateInstrumentControls() {
-    waveformSelect.value = instrumentSettings.waveform;
+    updateBank1UI();
     attackSlider.value = String(instrumentSettings.attack);
     decaySlider.value = String(instrumentSettings.decay);
     sustainSlider.value = String(instrumentSettings.sustain);
@@ -348,6 +467,176 @@ function updateInstrumentControls() {
     sustainValue.textContent = sustainSlider.value;
     releaseValue.textContent = releaseSlider.value;
     if (durationValue) durationValue.textContent = durationSlider?.value || "1";
+}
+
+function normalizeBank1(savedBank1, legacyWaveform = "sine") {
+    if (!savedBank1 || typeof savedBank1 !== "object") {
+        return {
+            instrument: BANK1_INSTRUMENT_BY_WAVEFORM[legacyWaveform] || "sine",
+            octave: 3
+        };
+    }
+
+    const savedInstrument = savedBank1.instrument === "sawtooth"
+        ? "saw"
+        : String(savedBank1.instrument || "");
+    const instrument = BANK1_INSTRUMENTS.some(candidate => candidate.id === savedInstrument)
+        ? savedInstrument
+        : BANK1_INSTRUMENT_BY_WAVEFORM[legacyWaveform] || "sine";
+    const octave = Number(savedBank1.octave);
+
+    return {
+        instrument,
+        octave: Number.isInteger(octave)
+            ? Math.min(BANK1_MAX_OCTAVE, Math.max(BANK1_MIN_OCTAVE, octave))
+            : 3
+    };
+}
+
+function normalizeBank1DrumKit(savedDrumKit) {
+    const savedAssignments = savedDrumKit?.assignments || {};
+    const validSoundIds = new Set(BANK1_DRUM_SOUNDS.map(sound => sound.id));
+    const assignments = { ...DEFAULT_BANK1_DRUM_ASSIGNMENTS };
+
+    BANK1_DRUM_SLOTS.forEach(slot => {
+        const savedSoundId = savedAssignments[slot.id];
+        if (validSoundIds.has(savedSoundId)) {
+            assignments[slot.id] = savedSoundId;
+        }
+    });
+
+    return { schemaVersion: 1, assignments };
+}
+
+function getPlayableNote(noteName) {
+    const match = /^([A-G]#?)-?\d+$/.exec(String(noteName));
+    if (!match) {
+        throw new TypeError(`Invalid Bank 1 note name: ${noteName}`);
+    }
+    return `${match[1]}${bank1.octave}`;
+}
+
+function getInputKeyForNote(note) {
+    const pitchClass = /^([A-G]#?)-?\d+$/.exec(String(note))?.[1];
+    return pitchClass ? noteToKeyMap[`${pitchClass}3`] : undefined;
+}
+
+function renderBank1DrumSlots() {
+    if (!bank1DrumSlots) return;
+    bank1DrumSlots.replaceChildren();
+
+    BANK1_DRUM_SLOTS.forEach((slot, index) => {
+        const wrapper = document.createElement("label");
+        wrapper.className = "bank1-drum-slot";
+        wrapper.htmlFor = `bank1-${slot.id}`;
+
+        const label = document.createElement("span");
+        label.textContent = `Pad ${String(index + 1).padStart(2, "0")} (${slot.keys.join("/").toUpperCase()})`;
+
+        const select = document.createElement("select");
+        select.id = `bank1-${slot.id}`;
+        select.dataset.drumSlot = slot.id;
+        BANK1_DRUM_SOUNDS.forEach(sound => {
+            const option = document.createElement("option");
+            option.value = sound.id;
+            option.textContent = sound.label;
+            select.appendChild(option);
+        });
+
+        wrapper.append(label, select);
+        bank1DrumSlots.appendChild(wrapper);
+    });
+}
+
+function updateBank1UI() {
+    if (bank1InstrumentSelect) bank1InstrumentSelect.value = bank1.instrument;
+    if (bank1OctaveValue) bank1OctaveValue.textContent = String(bank1.octave);
+    if (bank1RangeLabel) {
+        bank1RangeLabel.textContent = bank1.instrument === "drumkit"
+            ? "12 assignable pads"
+            : `${BANK1_PITCH_CLASSES[0]}${bank1.octave}-${BANK1_PITCH_CLASSES[11]}${bank1.octave}`;
+    }
+
+    const octaveDisabled = bank1.instrument === "noise" || bank1.instrument === "drumkit";
+    if (bank1OctaveDownBtn) bank1OctaveDownBtn.disabled = octaveDisabled || bank1.octave <= BANK1_MIN_OCTAVE;
+    if (bank1OctaveUpBtn) bank1OctaveUpBtn.disabled = octaveDisabled || bank1.octave >= BANK1_MAX_OCTAVE;
+    if (bank1DrumSlots) bank1DrumSlots.hidden = bank1.instrument !== "drumkit";
+    bank1DrumSlots?.querySelectorAll("select[data-drum-slot]").forEach(select => {
+        select.value = bank1DrumKit.assignments[select.dataset.drumSlot];
+    });
+
+    const keymap = document.getElementById("keymap");
+    if (!keymap) return;
+    if (bank1.instrument === "drumkit") {
+        keymap.textContent = BANK1_DRUM_SLOTS.map((slot, index) => {
+            const soundId = bank1DrumKit.assignments[slot.id];
+            const sound = BANK1_DRUM_SOUNDS.find(candidate => candidate.id === soundId);
+            return `${slot.keys.join("/").toUpperCase()} = Pad ${String(index + 1).padStart(2, "0")} (${sound?.label || "Unassigned"})`;
+        }).join("\n");
+        return;
+    }
+
+    keymap.textContent = [
+        `Q=${getPlayableNote("C3")}   2=${getPlayableNote("C#3")}`,
+        `W=${getPlayableNote("D3")}   3=${getPlayableNote("D#3")}`,
+        `E=${getPlayableNote("E3")}`,
+        `R=${getPlayableNote("F3")}   5=${getPlayableNote("F#3")}`,
+        `T=${getPlayableNote("G3")}   6=${getPlayableNote("G#3")}`,
+        `Y=${getPlayableNote("A3")}   7=${getPlayableNote("A#3")}`,
+        `U=${getPlayableNote("B3")}`
+    ].join("\n");
+}
+
+function setBank1Instrument(instrumentId) {
+    const instrument = BANK1_INSTRUMENTS.find(candidate => candidate.id === instrumentId);
+    if (!instrument) throw new RangeError(`Unsupported Bank 1 instrument: ${instrumentId}`);
+    if (bank1.instrument === instrument.id) return false;
+
+    const before = beginCompositionTransaction();
+    bank1 = { ...bank1, instrument: instrument.id };
+    if (BANK1_WAVEFORM_BY_INSTRUMENT[instrument.id]) {
+        instrumentSettings.waveform = BANK1_WAVEFORM_BY_INSTRUMENT[instrument.id];
+    }
+    applyInstrumentSettingsToSynth();
+    updateBank1UI();
+    renderRibbon();
+    recordCompositionTransaction("CHANGE_INSTRUMENT", "Change Bank 1 Instrument", before);
+    return true;
+}
+
+function setBank1Octave(octave) {
+    const nextOctave = Number(octave);
+    if (!Number.isInteger(nextOctave) || nextOctave < BANK1_MIN_OCTAVE || nextOctave > BANK1_MAX_OCTAVE) {
+        throw new RangeError(`Bank 1 octave must be between ${BANK1_MIN_OCTAVE} and ${BANK1_MAX_OCTAVE}.`);
+    }
+    if (bank1.octave === nextOctave) return false;
+
+    const before = beginCompositionTransaction();
+    bank1 = { ...bank1, octave: nextOctave };
+    updateBank1UI();
+    renderRibbon();
+    recordCompositionTransaction("CHANGE_BANK1_OCTAVE", "Change Bank 1 Octave", before);
+    return true;
+}
+
+function setBank1DrumSound(slotId, soundId) {
+    if (!BANK1_DRUM_SLOTS.some(slot => slot.id === slotId)) {
+        throw new RangeError(`Unsupported Bank 1 drum slot: ${slotId}`);
+    }
+    if (!BANK1_DRUM_SOUNDS.some(sound => sound.id === soundId)) {
+        throw new RangeError(`Unsupported Bank 1 drum sound: ${soundId}`);
+    }
+    if (bank1DrumKit.assignments[slotId] === soundId) return false;
+
+    const before = beginCompositionTransaction();
+    bank1DrumKit = {
+        ...bank1DrumKit,
+        assignments: { ...bank1DrumKit.assignments, [slotId]: soundId }
+    };
+    updateBank1UI();
+    renderRibbon();
+    recordCompositionTransaction("CHANGE_DRUM_ASSIGNMENT", "Change Drum Pad Sound", before);
+    return true;
 }
 
 function finishInstrumentEdit() {
@@ -371,14 +660,16 @@ startBtn.addEventListener("click", async () => {
     console.log("Tone started");
 });
 
-waveformSelect.addEventListener("change", () => {
-    finishRecording();
-    const before = pendingInstrumentTransaction || getCompositionSnapshot();
-    pendingInstrumentTransaction = null;
-    syncInstrumentSettingsFromControls();
-    applyInstrumentSettingsToSynth();
-    recordCompositionTransaction("CHANGE_INSTRUMENT", "Change Instrument", before);
-    console.log("WAVEFORM", waveformSelect.value);
+bank1InstrumentSelect?.addEventListener("change", () => {
+    setBank1Instrument(bank1InstrumentSelect.value);
+});
+
+bank1OctaveDownBtn?.addEventListener("click", () => setBank1Octave(bank1.octave - 1));
+bank1OctaveUpBtn?.addEventListener("click", () => setBank1Octave(bank1.octave + 1));
+
+bank1DrumSlots?.addEventListener("change", event => {
+    const select = event.target.closest("select[data-drum-slot]");
+    if (select) setBank1DrumSound(select.dataset.drumSlot, select.value);
 });
 
 function buildProjectData() {
@@ -780,13 +1071,34 @@ function secondsForTicks(ticks) {
     return ticksToMilliseconds(ticks) / 1000;
 }
 
+function getTimelineEventInstrument(rawEvent) {
+    if (rawEvent.kind === "drum") return "drumkit";
+    const savedInstrument = rawEvent.instrumentId === "sawtooth"
+        ? "saw"
+        : String(rawEvent.instrumentId || "");
+    if (BANK1_INSTRUMENTS.some(instrument => instrument.id === savedInstrument)) {
+        return savedInstrument;
+    }
+    return BANK1_INSTRUMENT_BY_WAVEFORM[rawEvent.waveform] || "sine";
+}
+
 function makeTimelineEvent(rawEvent, startTick, durationTicks) {
     const normalizedStartTick = Math.max(0, Math.round(startTick));
     const normalizedDurationTicks = Math.max(1, Math.round(durationTicks));
+    const kind = rawEvent.kind === "drum" ? "drum" : "note";
+    const padId = BANK1_DRUM_SLOTS.some(slot => slot.id === rawEvent.padId)
+        ? rawEvent.padId
+        : "";
+    if (kind === "drum" && !padId) {
+        throw new TypeError("Bank 1 drum timeline events must reference a valid drum pad.");
+    }
     return {
         id: String(rawEvent.id || rawEvent.eventId || crypto.randomUUID()),
         trackId: String(rawEvent.trackId || DEFAULT_TRACK_ID),
         note: String(rawEvent.note || ""),
+        kind,
+        instrumentId: getTimelineEventInstrument(rawEvent),
+        padId,
         startTime: secondsForTicks(normalizedStartTick),
         duration: secondsForTicks(normalizedDurationTicks),
         startTick: normalizedStartTick,
@@ -991,6 +1303,8 @@ function getCompositionSnapshot() {
             events: cell.events.map(event => ({ ...event }))
         })),
         instruments: [{ ...instrumentSettings }],
+        bank1: { ...bank1 },
+        bank1DrumKit: cloneState(bank1DrumKit),
         fxChains: cloneState(fxChains),
         tempo: tempoBpm,
         timing: {
@@ -1055,6 +1369,10 @@ function restoreCompositionSnapshot(snapshot) {
         ...instrumentSettings,
         ...(snapshot.instruments?.[0] || {})
     };
+    bank1 = normalizeBank1(snapshot.bank1, instrumentSettings.waveform);
+    bank1DrumKit = normalizeBank1DrumKit(snapshot.bank1DrumKit);
+    instrumentSettings.waveform = BANK1_WAVEFORM_BY_INSTRUMENT[bank1.instrument]
+        || instrumentSettings.waveform;
     fxChains = cloneState(snapshot.fxChains || []);
     if (!cellMemories.some(cell => cell.id === selectedCellMemoryId)) {
         selectedCellMemoryId = cellMemories[0].id;
@@ -1093,9 +1411,8 @@ function redoComposition() {
 }
 
 function applyMasterVolume() {
-    if (!synth?.volume) return;
-    const volume = mixerState.master.volume;
-    synth.volume.value = volume === 0 ? -Infinity : 20 * Math.log10(volume);
+    if (!masterOutputGain) return;
+    masterOutputGain.gain.value = mixerState.master.volume;
 }
 
 function setMasterVolume(volume) {
@@ -1410,10 +1727,16 @@ function changeInstrument(updates) {
         }
         next[setting] = Number(next[setting]);
     }
-    if (!["sine", "square", "sawtooth", "triangle"].includes(next.waveform)) {
+    if (!Object.values(BANK1_WAVEFORM_BY_INSTRUMENT).includes(next.waveform)) {
         throw new RangeError("Choose a supported waveform.");
     }
     instrumentSettings = next;
+    if (Object.prototype.hasOwnProperty.call(updates, "waveform")) {
+        bank1 = {
+            ...bank1,
+            instrument: BANK1_INSTRUMENT_BY_WAVEFORM[next.waveform]
+        };
+    }
     updateInstrumentControls();
     applyInstrumentSettingsToSynth();
     recordCompositionTransaction("CHANGE_INSTRUMENT", "Change Instrument", before);
@@ -1463,20 +1786,151 @@ function unhighlightKey(keyName) {
     }
 }
 
-function recordEvent(type, note) {
+function scheduleGeneratedVoiceDisposal(voice, delayMs) {
+    const timerId = setTimeout(() => {
+        managedGeneratedVoices.delete(voice);
+        voice.dispose();
+    }, delayMs);
+    managedGeneratedVoices.set(voice, timerId);
+}
+
+function disposeGeneratedVoices() {
+    activeNoiseVoices.forEach(voice => voice.dispose());
+    activeNoiseVoices.clear();
+    managedGeneratedVoices.forEach((timerId, voice) => {
+        clearTimeout(timerId);
+        voice.dispose();
+    });
+    managedGeneratedVoices.clear();
+}
+
+function getEnvelopeSettings(settings = instrumentSettings) {
+    return {
+        attack: settings.attack,
+        decay: settings.decay,
+        sustain: settings.sustain,
+        release: settings.release
+    };
+}
+
+function startAudioNote(note, instrumentId, inputId, velocity = 1, settings = instrumentSettings) {
+    if (!primaryTrackGain || activeNotes.has(inputId)) return false;
+
+    if (instrumentId === "noise") {
+        const voice = new Tone.NoiseSynth({
+            noise: { type: "white" },
+            envelope: getEnvelopeSettings(settings)
+        }).connect(primaryTrackGain);
+        voice.triggerAttack(undefined, velocity);
+        activeNoiseVoices.set(inputId, voice);
+        activeNotes.set(inputId, { note, instrumentId, voice, release: settings.release });
+        return true;
+    }
+
+    const waveform = BANK1_WAVEFORM_BY_INSTRUMENT[instrumentId]
+        || settings.waveform
+        || "sine";
+    const instrumentSynth = pitchedSynths.get(waveform);
+    if (!instrumentSynth) return false;
+    instrumentSynth.set({ envelope: getEnvelopeSettings(settings) });
+    instrumentSynth.triggerAttack(note, undefined, velocity);
+    activeNotes.set(inputId, {
+        note,
+        instrumentId,
+        synth: instrumentSynth,
+        release: settings.release
+    });
+    return true;
+}
+
+function releaseAudioNote(inputId, release) {
+    const activeNote = activeNotes.get(inputId);
+    if (!activeNote) return false;
+    activeNotes.delete(inputId);
+
+    if (activeNote.voice) {
+        activeNoiseVoices.delete(inputId);
+        activeNote.voice.triggerRelease();
+        const releaseTime = Number.isFinite(Number(release))
+            ? Number(release)
+            : Number(activeNote.release || instrumentSettings.release);
+        scheduleGeneratedVoiceDisposal(activeNote.voice, Math.max(100, releaseTime * 1000 + 100));
+    } else {
+        activeNote.synth.triggerRelease(activeNote.note);
+    }
+    return true;
+}
+
+function triggerDrumPad(padId, velocity = 1) {
+    if (!primaryTrackGain) return false;
+    const soundId = bank1DrumKit.assignments[padId];
+    const sound = BANK1_DRUM_SOUNDS.find(candidate => candidate.id === soundId);
+    if (!sound) return false;
+
+    const frequency = Tone.Frequency(sound.midiNote, "midi").toFrequency();
+    const noteName = Tone.Frequency(sound.midiNote, "midi").toNote();
+    let voice;
+    const envelope = { attack: 0.001, decay: 0.25, sustain: 0, release: 0.08 };
+
+    if (sound.family === "membrane") {
+        voice = new Tone.MembraneSynth({
+            pitchDecay: 0.04,
+            octaves: 3,
+            envelope: { ...envelope, decay: 0.35 }
+        });
+        voice.connect(primaryTrackGain);
+        voice.triggerAttackRelease(noteName, 0.35, undefined, velocity);
+    } else if (sound.family === "metal") {
+        voice = new Tone.MetalSynth({
+            frequency: Math.max(200, frequency),
+            envelope: { ...envelope, decay: 0.5 },
+            harmonicity: 5.1,
+            modulationIndex: 32,
+            resonance: 4000,
+            octaves: 1.5
+        });
+        voice.connect(primaryTrackGain);
+        const duration = [46, 49, 51, 52, 55, 57, 59, 81, 84].includes(sound.midiNote) ? 1.2 : 0.35;
+        voice.triggerAttackRelease(duration, undefined, velocity);
+    } else if (sound.family === "tone") {
+        voice = new Tone.Synth({
+            oscillator: { type: "square" },
+            envelope: { ...envelope, decay: 0.12 }
+        });
+        voice.connect(primaryTrackGain);
+        voice.triggerAttackRelease(noteName, 0.12, undefined, velocity);
+    } else {
+        voice = new Tone.NoiseSynth({
+            noise: { type: "white" },
+            envelope: { ...envelope, decay: 0.12 }
+        });
+        voice.connect(primaryTrackGain);
+        voice.triggerAttackRelease(0.14, undefined, velocity);
+    }
+
+    scheduleGeneratedVoiceDisposal(voice, sound.family === "metal" ? 1800 : 700);
+    return true;
+}
+
+function getRecordingTick() {
+    const elapsed = performance.now() - recordingStart;
+    return recordingStartTick
+        + Math.round((elapsed * tempoBpm * SIS_TICKS_PER_QUARTER) / 60000);
+}
+
+function recordEvent(type, note, instrumentId = bank1.instrument, inputId = note) {
     if (!isRecording) return;
 
     if (type === "noteOn") {
-        const elapsed = performance.now() - recordingStart;
-        const startTick = recordingStartTick
-            + Math.round((elapsed * tempoBpm * SIS_TICKS_PER_QUARTER) / 60000);
-        activeRecordingNoteIds.set(note, {
+        activeRecordingNoteIds.set(inputId, {
             id: crypto.randomUUID(),
             trackId: DEFAULT_TRACK_ID,
-            startTick,
+            startTick: getRecordingTick(),
             note,
+            kind: "note",
+            instrumentId,
             velocity: 1,
-            waveform: instrumentSettings.waveform,
+            waveform: BANK1_WAVEFORM_BY_INSTRUMENT[instrumentId] || instrumentSettings.waveform,
             attack: instrumentSettings.attack,
             decay: instrumentSettings.decay,
             sustain: instrumentSettings.sustain,
@@ -1486,12 +1940,10 @@ function recordEvent(type, note) {
     }
 
     if (type === "noteOff") {
-        const startedNote = activeRecordingNoteIds.get(note);
+        const startedNote = activeRecordingNoteIds.get(inputId);
         if (!startedNote) return;
-        activeRecordingNoteIds.delete(note);
-        const elapsed = performance.now() - recordingStart;
-        const endTick = recordingStartTick
-            + Math.round((elapsed * tempoBpm * SIS_TICKS_PER_QUARTER) / 60000);
+        activeRecordingNoteIds.delete(inputId);
+        const endTick = getRecordingTick();
         recordingData.push(makeTimelineEvent(
             startedNote,
             startedNote.startTick,
@@ -1502,9 +1954,26 @@ function recordEvent(type, note) {
     }
 }
 
+function recordDrumHit(padId) {
+    if (!isRecording) return;
+    recordingData.push(makeTimelineEvent({
+        id: crypto.randomUUID(),
+        trackId: DEFAULT_TRACK_ID,
+        note: padId,
+        kind: "drum",
+        instrumentId: "drumkit",
+        padId,
+        velocity: 1
+    }, getRecordingTick(), 1));
+    rebuildTrackEventRefs();
+    renderRibbon();
+}
+
 function finishRecording() {
     if (!isRecording) return false;
-    [...activeRecordingNoteIds.keys()].forEach(note => recordEvent("noteOff", note));
+    [...activeRecordingNoteIds.entries()].forEach(([inputId, note]) => (
+        recordEvent("noteOff", note.note, note.instrumentId, inputId)
+    ));
     activeRecordingNoteIds.clear();
     isRecording = false;
     if (recordingHistoryBefore) {
@@ -1531,6 +2000,15 @@ function loadProject(data, options = {}) {
         release: Number(instrument.release ?? compositionData.release ?? data.release ?? 1),
         duration: Number(instrument.duration ?? compositionData.duration ?? data.duration ?? 1)
     };
+    bank1 = normalizeBank1(
+        compositionData.bank1 || data.bank1,
+        instrumentSettings.waveform
+    );
+    bank1DrumKit = normalizeBank1DrumKit(
+        compositionData.bank1DrumKit || data.bank1DrumKit
+    );
+    instrumentSettings.waveform = BANK1_WAVEFORM_BY_INSTRUMENT[bank1.instrument]
+        || instrumentSettings.waveform;
     updateInstrumentControls();
 
     const timing = compositionData.timing || data.timing || {};
@@ -1576,6 +2054,7 @@ function loadProject(data, options = {}) {
     mixerVersionStore = normalizeMixerVersionStore(data.mixerVersionStore);
     mixerBaselineSnapshot = cloneState(mixerState);
     mixerVersionStore.isDirty = false;
+    applyMasterVolume();
     applyPrimaryTrackOutput();
     renderMixerControls();
     fxChains = Array.isArray(compositionData.fxChains)
@@ -1616,44 +2095,71 @@ function importProject(data) {
     recordCompositionTransaction("IMPORT_PROJECT", "Import Project", before);
 }
 
-function noteOn(note) {
-    if (!synth) return;
-    if (activeNotes.has(note)) return;
-
-    activeNotes.add(note);
-    recordEvent("noteOn", note);
-    synth.triggerAttack(note);
+function noteOn(note, instrumentId = bank1.instrument, inputId = note) {
+    if (!startAudioNote(note, instrumentId, inputId)) return false;
+    recordEvent("noteOn", note, instrumentId, inputId);
+    return true;
 }
 
-function noteOff(note) {
-    if (!synth) return;
-    if (!activeNotes.has(note)) return;
+function noteOff(inputId, note = inputId, instrumentId = bank1.instrument) {
+    const activeNote = activeNotes.get(inputId);
+    if (!activeNote || !releaseAudioNote(inputId)) {
+        return false;
+    }
+    recordEvent("noteOff", activeNote.note || note, activeNote.instrumentId || instrumentId, inputId);
+    return true;
+}
 
-    activeNotes.delete(note);
-    recordEvent("noteOff", note);
-    synth.triggerRelease(note);
+function resolveBank1Input(key) {
+    if (bank1.instrument === "drumkit") {
+        const padId = BANK1_DRUM_KEY_BINDINGS[key];
+        return padId ? { kind: "drum", padId } : null;
+    }
+
+    const mappedNote = keyMap[key];
+    return mappedNote
+        ? { kind: "note", note: getPlayableNote(mappedNote), instrumentId: bank1.instrument }
+        : null;
+}
+
+function startBank1Input(key, inputId) {
+    if (activeBank1Inputs.has(inputId)) return;
+    const action = resolveBank1Input(key);
+    if (!action) return;
+
+    const started = action.kind === "drum"
+        ? triggerDrumPad(action.padId)
+        : noteOn(action.note, action.instrumentId, inputId);
+    if (!started) return;
+
+    activeBank1Inputs.set(inputId, action);
+    if (action.kind === "drum") recordDrumHit(action.padId);
+    highlightKey(key);
+}
+
+function releaseBank1Input(key, inputId) {
+    const action = activeBank1Inputs.get(inputId);
+    if (!action) return;
+    activeBank1Inputs.delete(inputId);
+    if (action.kind === "note") {
+        noteOff(inputId, action.note, action.instrumentId);
+    }
+    unhighlightKey(key);
 }
 
 document.addEventListener("keydown", (event) => {
     if (event.repeat) return;
 
     const key = event.key.toLowerCase();
-    const note = keyMap[key];
-
-    if (!note) return;
-
-    noteOn(note);
-    highlightKey(key);
+    const target = event.target;
+    if (target instanceof HTMLElement && !target.matches("[data-key]")
+        && target.closest("input, textarea, select, [contenteditable='true']")) return;
+    startBank1Input(key, `keyboard:${key}`);
 });
 
 document.addEventListener("keyup", (event) => {
     const key = event.key.toLowerCase();
-    const note = keyMap[key];
-
-    if (!note) return;
-
-    noteOff(note);
-    unhighlightKey(key);
+    releaseBank1Input(key, `keyboard:${key}`);
 });
 
 attackSlider.addEventListener("input", () => {
@@ -1703,10 +2209,10 @@ function stopPlayback() {
     isPlaying = false;
     playhead.stop(false);
 
-    if (synth) {
-        synth.releaseAll();
-    }
+    pitchedSynths.forEach(instrumentSynth => instrumentSynth.releaseAll());
+    disposeGeneratedVoices();
     activeNotes.clear();
+    activeBank1Inputs.clear();
     document.querySelectorAll("[data-key]").forEach(el => el.classList.remove("active"));
 }
 
@@ -1782,8 +2288,13 @@ function renderRibbon() {
     plot.style.left = `${ribbonPitchGutterWidth}px`;
     ribbon.appendChild(plot);
 
-    const laneHeight = ribbon.clientHeight / ribbonPitchNames.length;
-    [...ribbonPitchNames].reverse().forEach((pitch, row) => {
+    const drumMode = bank1.instrument === "drumkit";
+    const laneLabels = drumMode
+        ? BANK1_DRUM_SLOTS.map((slot, index) => String(index + 1).padStart(2, "0"))
+        : BANK1_PITCH_CLASSES.map(pitch => `${pitch}${bank1.octave}`);
+    const laneHeight = ribbon.clientHeight / laneLabels.length;
+    const displayedLaneLabels = drumMode ? laneLabels : [...laneLabels].reverse();
+    displayedLaneLabels.forEach((pitch, row) => {
         const lane = document.createElement("div");
         lane.className = "ribbon-pitch-lane";
         if (pitch.includes("#")) lane.classList.add("sharp");
@@ -1811,15 +2322,24 @@ function renderRibbon() {
     ribbonNotes.forEach(note => {
         const block = document.createElement("div");
         block.className = "ribbon-block";
-        if (note.note.includes("#")) block.classList.add("sharp");
+        const notePitchClass = /^([A-G]#?)-?\d+$/.exec(note.note)?.[1] || "";
+        const drumSlotIndex = BANK1_DRUM_SLOTS.findIndex(slot => slot.id === note.padId);
+        const drumSound = BANK1_DRUM_SOUNDS.find(sound => (
+            sound.id === bank1DrumKit.assignments[note.padId]
+        ));
+        if (note.kind === "drum") block.classList.add("drum-event");
+        if (notePitchClass.includes("#")) block.classList.add("sharp");
         block.dataset.note = note.note;
         block.dataset.noteId = note.id;
         block.dataset.startTick = String(note.startTick);
         block.dataset.durationTicks = String(note.durationTicks);
-        block.title = `${note.note} - Start: ${note.startTick} ticks - Duration: ${note.durationTicks} ticks`;
+        const displayNote = note.kind === "drum"
+            ? drumSound?.label || `Pad ${String(drumSlotIndex + 1).padStart(2, "0")}`
+            : note.note;
+        block.title = `${displayNote} - Start: ${note.startTick} ticks - Duration: ${note.durationTicks} ticks`;
         block.setAttribute(
             "aria-label",
-            `${note.note} note, starts at tick ${note.startTick}, duration ${note.durationTicks} ticks`
+            `${displayNote} ${note.kind === "drum" ? "drum hit" : "note"}, starts at tick ${note.startTick}, duration ${note.durationTicks} ticks`
         );
         block.setAttribute("role", "button");
         block.tabIndex = 0;
@@ -1828,17 +2348,19 @@ function renderRibbon() {
 
         const startRatio = note.startTick / timelineLengthTicks;
         const durationRatio = note.durationTicks / timelineLengthTicks;
-        const pitchIndex = ribbonPitchNames.indexOf(note.note);
-        const row = pitchIndex === -1
-            ? 0
-            : ribbonPitchNames.length - 1 - pitchIndex;
+        const pitchIndex = BANK1_PITCH_CLASSES.indexOf(notePitchClass);
+        const row = note.kind === "drum"
+            ? Math.max(0, drumSlotIndex)
+            : pitchIndex === -1
+                ? 0
+                : laneLabels.length - 1 - pitchIndex;
 
         block.style.left = `${startRatio * 100}%`;
         block.style.width = `${durationRatio * 100}%`;
-        block.style.top = `${(row / ribbonPitchNames.length) * 100}%`;
-        block.style.height = `${100 / ribbonPitchNames.length}%`;
+        block.style.top = `${(row / laneLabels.length) * 100}%`;
+        block.style.height = `${100 / laneLabels.length}%`;
         if (plot.clientWidth * durationRatio >= 24) {
-            block.textContent = note.note;
+            block.textContent = displayNote;
         }
         block.addEventListener("click", event => handleTimelineNoteSelection(note, event));
         block.addEventListener("keydown", event => {
@@ -1861,6 +2383,8 @@ function buildRibbonNotes() {
         id: event.id,
         trackId: event.trackId,
         note: event.note,
+        kind: event.kind,
+        padId: event.padId,
         startTick: getEventTick(event),
         durationTicks: getEventDurationTicks(event)
     }));
@@ -2471,14 +2995,16 @@ playBtn.addEventListener("click", () => {
     );
     const playbackEvents = recordingData
         .filter(event => playableTrackIds.has(event.trackId))
-        .flatMap(event => [
-            { event, type: "noteOn", tick: getEventTick(event) },
-            {
-                event,
-                type: "noteOff",
-                tick: getEventTick(event) + getEventDurationTicks(event)
-            }
-        ])
+        .flatMap(event => event.kind === "drum"
+            ? [{ event, type: "drum", tick: getEventTick(event) }]
+            : [
+                { event, type: "noteOn", tick: getEventTick(event) },
+                {
+                    event,
+                    type: "noteOff",
+                    tick: getEventTick(event) + getEventDurationTicks(event)
+                }
+            ])
         .sort((a, b) => (
             a.tick - b.tick
             || (a.type === b.type ? 0 : a.type === "noteOff" ? -1 : 1)
@@ -2496,23 +3022,29 @@ playBtn.addEventListener("click", () => {
 
     playbackEvents.forEach(({ event, type, tick }, index) => {
         const timeoutId = setTimeout(() => {
-            const keyName = noteToKeyMap[event.note];
+            const playbackInputId = `playback:${event.id}`;
+            const keyName = type === "drum"
+                ? BANK1_DRUM_SLOTS.find(slot => slot.id === event.padId)?.keys[0]
+                : getInputKeyForNote(event.note);
 
             if (type === "noteOn") {
-                synth.set({
-                    oscillator: { type: event.waveform },
-                    envelope: {
-                        attack: event.attack,
-                        decay: event.decay,
-                        sustain: event.sustain,
-                        release: event.release
-                    }
-                });
-                synth.triggerAttack(event.note, undefined, event.velocity);
+                startAudioNote(
+                    event.note,
+                    event.instrumentId || getTimelineEventInstrument(event),
+                    playbackInputId,
+                    event.velocity,
+                    event
+                );
                 if (keyName) highlightKey(keyName);
             } else if (type === "noteOff") {
-                synth.triggerRelease(event.note);
+                releaseAudioNote(playbackInputId, event.release);
                 if (keyName) unhighlightKey(keyName);
+            } else if (type === "drum") {
+                triggerDrumPad(event.padId, event.velocity);
+                if (keyName) highlightKey(keyName);
+                if (keyName) {
+                    setTimeout(() => unhighlightKey(keyName), 100);
+                }
             }
 
             if (index === playbackEvents.length - 1) {
@@ -2526,37 +3058,31 @@ playBtn.addEventListener("click", () => {
 
 document.querySelectorAll("[data-key]").forEach(keyElement => {
     const physicalKey = keyElement.dataset.key;
-    const note = keyMap[physicalKey];
-
-    if (!note) return;
 
     keyElement.addEventListener("mousedown", () => {
-        noteOn(note);
-        highlightKey(physicalKey);
+        startBank1Input(physicalKey, `piano:${physicalKey}`);
     });
 
     keyElement.addEventListener("mouseup", () => {
-        noteOff(note);
-        unhighlightKey(physicalKey);
+        releaseBank1Input(physicalKey, `piano:${physicalKey}`);
     });
 
     keyElement.addEventListener("mouseleave", () => {
-        noteOff(note);
-        unhighlightKey(physicalKey);
+        releaseBank1Input(physicalKey, `piano:${physicalKey}`);
     });
 
     keyElement.addEventListener("touchstart", (event) => {
         event.preventDefault();
-        noteOn(note);
-        highlightKey(physicalKey);
+        startBank1Input(physicalKey, `piano:${physicalKey}`);
     });
 
     keyElement.addEventListener("touchend", () => {
-        noteOff(note);
-        unhighlightKey(physicalKey);
+        releaseBank1Input(physicalKey, `piano:${physicalKey}`);
     });
 });
 
+renderBank1DrumSlots();
+updateBank1UI();
 updateCellTransferControls();
 renderCellMemoryBank();
 renderMixerControls();
