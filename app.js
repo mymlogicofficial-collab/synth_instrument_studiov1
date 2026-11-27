@@ -20,6 +20,13 @@ const bank1OctaveUpBtn = document.getElementById("bank1OctaveUp");
 const bank1OctaveValue = document.getElementById("bank1OctaveValue");
 const bank1RangeLabel = document.getElementById("bank1Range");
 const bank1DrumSlots = document.getElementById("bank1DrumSlots");
+const bankCoupleToggle = document.getElementById("bankCoupleToggle");
+const bank23Controller = document.getElementById("bank23Controller");
+const bank23InstrumentSelect = document.getElementById("bank23Instrument");
+const bank23OctaveDownBtn = document.getElementById("bank23OctaveDown");
+const bank23OctaveUpBtn = document.getElementById("bank23OctaveUp");
+const bank23OctaveValue = document.getElementById("bank23OctaveValue");
+const bank23RangeLabel = document.getElementById("bank23Range");
 
 const recordBtn = document.getElementById("recordBtn");
 const playBtn = document.getElementById("playBtn");
@@ -64,7 +71,51 @@ const DEFAULT_TRACK_ID = "track_1";
 const DEFAULT_TRACK_NAME = "Lead";
 const BANK1_MIN_OCTAVE = 1;
 const BANK1_MAX_OCTAVE = 8;
+const BANK23_MIN_OCTAVE = 1;
+const BANK23_MAX_OCTAVE = 7;
 const BANK1_PITCH_CLASSES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const KEY_CODE_BY_LABEL = {
+    q: "KeyQ",
+    "2": "Digit2",
+    w: "KeyW",
+    "3": "Digit3",
+    e: "KeyE",
+    r: "KeyR",
+    "5": "Digit5",
+    t: "KeyT",
+    "6": "Digit6",
+    y: "KeyY",
+    "7": "Digit7",
+    u: "KeyU",
+    i: "KeyI",
+    "9": "Digit9",
+    o: "KeyO",
+    "0": "Digit0",
+    p: "KeyP",
+    "[": "BracketLeft",
+    "=": "Equal",
+    z: "KeyZ",
+    s: "KeyS",
+    x: "KeyX",
+    d: "KeyD",
+    c: "KeyC",
+    v: "KeyV",
+    g: "KeyG",
+    b: "KeyB",
+    h: "KeyH",
+    n: "KeyN",
+    m: "KeyM",
+    k: "KeyK",
+    ",": "Comma",
+    l: "KeyL",
+    ".": "Period",
+    ";": "Semicolon",
+    "/": "Slash"
+};
+const BANK23_KEY_LABELS = [
+    ["i", "9", "o", "0", "p", "[", "=", "z", "s", "x", "d", "c"],
+    ["v", "g", "b", "h", "n", "m", "k", ",", "l", ".", ";", "/"]
+];
 const BANK1_INSTRUMENTS = [
     { id: "sine", label: "Sine" },
     { id: "square", label: "Square" },
@@ -152,7 +203,7 @@ const BANK1_DRUM_SLOTS = [
     { id: "pad_12", keys: ["v", "b"], defaultSoundId: "gm_36_bass_drum_1" }
 ];
 const BANK1_DRUM_KEY_BINDINGS = Object.fromEntries(
-    BANK1_DRUM_SLOTS.flatMap(slot => slot.keys.map(key => [key, slot.id]))
+    BANK1_DRUM_SLOTS.flatMap(slot => slot.keys.map(key => [KEY_CODE_BY_LABEL[key], slot.id]))
 );
 const DEFAULT_BANK1_DRUM_ASSIGNMENTS = Object.fromEntries(
     BANK1_DRUM_SLOTS.map(slot => [slot.id, slot.defaultSoundId])
@@ -229,7 +280,8 @@ let beatUnit = DEFAULT_BEAT_UNIT;
 let tracks = createDefaultTracks();
 let cellMemories = createEmptyCellMemories();
 let selectedCellMemoryId = cellMemories[0].id;
-let bank1 = { instrument: "sine", octave: 4 };
+let bank1 = { instrument: "sine", octave: 4, coupled: false };
+let bank23 = { instrument: "sine", octave: 3 };
 let bank1DrumKit = {
     schemaVersion: 1,
     assignments: { ...DEFAULT_BANK1_DRUM_ASSIGNMENTS }
@@ -268,7 +320,7 @@ let masterOutputGain;
 const activeNotes = new Map();
 const activeNoiseVoices = new Map();
 const managedGeneratedVoices = new Map();
-const activeBank1Inputs = new Map();
+const activeKeyboardInputs = new Map();
 const activeRecordingNoteIds = new Map();
 
 const keyMap = {
@@ -285,6 +337,20 @@ const keyMap = {
     7: "A#3",
     u: "B3"
 };
+const BANK1_KEY_LABELS = ["q", "2", "w", "3", "e", "r", "5", "t", "6", "y", "7", "u"];
+const BANK1_NOTE_BINDINGS = BANK1_KEY_LABELS.map(key => ({
+    code: KEY_CODE_BY_LABEL[key],
+    key,
+    note: /^([A-G]#?)/.exec(keyMap[key])[1]
+}));
+const BANK23_NOTE_BINDINGS = BANK23_KEY_LABELS.flatMap((labels, bankIndex) => (
+    labels.map((key, pitchIndex) => ({
+        bank: bankIndex + 2,
+        code: KEY_CODE_BY_LABEL[key],
+        key,
+        note: BANK1_PITCH_CLASSES[pitchIndex]
+    }))
+));
 
 const noteToKeyMap = Object.fromEntries(
     Object.entries(keyMap).map(([k, v]) => [v, k])
@@ -473,7 +539,8 @@ function normalizeBank1(savedBank1, legacyWaveform = "sine") {
     if (!savedBank1 || typeof savedBank1 !== "object") {
         return {
             instrument: BANK1_INSTRUMENT_BY_WAVEFORM[legacyWaveform] || "sine",
-            octave: 3
+            octave: 3,
+            coupled: false
         };
     }
 
@@ -489,6 +556,24 @@ function normalizeBank1(savedBank1, legacyWaveform = "sine") {
         instrument,
         octave: Number.isInteger(octave)
             ? Math.min(BANK1_MAX_OCTAVE, Math.max(BANK1_MIN_OCTAVE, octave))
+            : 3,
+        coupled: savedBank1.coupled === true
+    };
+}
+
+function normalizeBank23(savedBank23) {
+    const savedInstrument = String(savedBank23?.instrument || "");
+    const instrument = BANK1_INSTRUMENTS.some(candidate => (
+        candidate.id === savedInstrument && candidate.id !== "drumkit"
+    ))
+        ? savedInstrument
+        : "sine";
+    const octave = Number(savedBank23?.octave);
+
+    return {
+        instrument,
+        octave: Number.isInteger(octave)
+            ? Math.min(BANK23_MAX_OCTAVE, Math.max(BANK23_MIN_OCTAVE, octave))
             : 3
     };
 }
@@ -508,16 +593,18 @@ function normalizeBank1DrumKit(savedDrumKit) {
     return { schemaVersion: 1, assignments };
 }
 
-function getPlayableNote(noteName) {
-    const match = /^([A-G]#?)-?\d+$/.exec(String(noteName));
+function getPlayableNote(noteName, octave = bank1.octave) {
+    const match = /^([A-G]#?)(?:-?\d+)?$/.exec(String(noteName));
     if (!match) {
-        throw new TypeError(`Invalid Bank 1 note name: ${noteName}`);
+        throw new TypeError(`Invalid note name: ${noteName}`);
     }
-    return `${match[1]}${bank1.octave}`;
+    return `${match[1]}${octave}`;
 }
 
 function getInputKeyForNote(note) {
-    const pitchClass = /^([A-G]#?)-?\d+$/.exec(String(note))?.[1];
+    const match = /^([A-G]#?)(-?\d+)$/.exec(String(note));
+    if (!match || Number(match[2]) !== bank1.octave) return undefined;
+    const pitchClass = match[1];
     return pitchClass ? noteToKeyMap[`${pitchClass}3`] : undefined;
 }
 
@@ -551,15 +638,24 @@ function renderBank1DrumSlots() {
 function updateBank1UI() {
     if (bank1InstrumentSelect) bank1InstrumentSelect.value = bank1.instrument;
     if (bank1OctaveValue) bank1OctaveValue.textContent = String(bank1.octave);
+    if (bankCoupleToggle) bankCoupleToggle.checked = bank1.coupled;
+    if (bank23Controller) bank23Controller.hidden = bank1.coupled;
+    if (bank23InstrumentSelect) bank23InstrumentSelect.value = bank23.instrument;
+    if (bank23OctaveValue) bank23OctaveValue.textContent = String(bank23.octave);
     if (bank1RangeLabel) {
         bank1RangeLabel.textContent = bank1.instrument === "drumkit"
             ? "12 assignable pads"
             : `${BANK1_PITCH_CLASSES[0]}${bank1.octave}-${BANK1_PITCH_CLASSES[11]}${bank1.octave}`;
     }
+    if (bank23RangeLabel) {
+        bank23RangeLabel.textContent = `${BANK1_PITCH_CLASSES[0]}${bank23.octave}-${BANK1_PITCH_CLASSES[11]}${bank23.octave + 1}`;
+    }
 
     const octaveDisabled = bank1.instrument === "noise" || bank1.instrument === "drumkit";
     if (bank1OctaveDownBtn) bank1OctaveDownBtn.disabled = octaveDisabled || bank1.octave <= BANK1_MIN_OCTAVE;
     if (bank1OctaveUpBtn) bank1OctaveUpBtn.disabled = octaveDisabled || bank1.octave >= BANK1_MAX_OCTAVE;
+    if (bank23OctaveDownBtn) bank23OctaveDownBtn.disabled = bank23.octave <= BANK23_MIN_OCTAVE;
+    if (bank23OctaveUpBtn) bank23OctaveUpBtn.disabled = bank23.octave >= BANK23_MAX_OCTAVE;
     if (bank1DrumSlots) bank1DrumSlots.hidden = bank1.instrument !== "drumkit";
     bank1DrumSlots?.querySelectorAll("select[data-drum-slot]").forEach(select => {
         select.value = bank1DrumKit.assignments[select.dataset.drumSlot];
@@ -568,22 +664,27 @@ function updateBank1UI() {
     const keymap = document.getElementById("keymap");
     if (!keymap) return;
     if (bank1.instrument === "drumkit") {
-        keymap.textContent = BANK1_DRUM_SLOTS.map((slot, index) => {
-            const soundId = bank1DrumKit.assignments[slot.id];
-            const sound = BANK1_DRUM_SOUNDS.find(candidate => candidate.id === soundId);
-            return `${slot.keys.join("/").toUpperCase()} = Pad ${String(index + 1).padStart(2, "0")} (${sound?.label || "Unassigned"})`;
-        }).join("\n");
+        keymap.textContent = [
+            "BANK 1 - DRUM MODE",
+            ...BANK1_DRUM_SLOTS.map((slot, index) => {
+                const soundId = bank1DrumKit.assignments[slot.id];
+                const sound = BANK1_DRUM_SOUNDS.find(candidate => candidate.id === soundId);
+                return `${slot.keys.join("/").toUpperCase()} = Pad ${String(index + 1).padStart(2, "0")} (${sound?.label || "Unassigned"})`;
+            }),
+            "Bank 2/3 note keys are inactive while Drum Kit is selected."
+        ].join("\n");
         return;
     }
 
+    const formatBindings = (bindings, octave) => bindings
+        .map(binding => `${binding.key.toUpperCase()}=${getPlayableNote(binding.note, octave)}`)
+        .join("  ");
+    const bank23BaseOctave = bank1.coupled ? bank1.octave + 1 : bank23.octave;
+    const bank23UpperOctave = bank1.coupled ? bank1.octave + 2 : bank23.octave + 1;
     keymap.textContent = [
-        `Q=${getPlayableNote("C3")}   2=${getPlayableNote("C#3")}`,
-        `W=${getPlayableNote("D3")}   3=${getPlayableNote("D#3")}`,
-        `E=${getPlayableNote("E3")}`,
-        `R=${getPlayableNote("F3")}   5=${getPlayableNote("F#3")}`,
-        `T=${getPlayableNote("G3")}   6=${getPlayableNote("G#3")}`,
-        `Y=${getPlayableNote("A3")}   7=${getPlayableNote("A#3")}`,
-        `U=${getPlayableNote("B3")}`
+        `BANK 1 (${bank1.instrument.toUpperCase()}): ${formatBindings(BANK1_NOTE_BINDINGS, bank1.octave)}`,
+        `BANK 2 (${(bank1.coupled ? bank1.instrument : bank23.instrument).toUpperCase()}): ${formatBindings(BANK23_NOTE_BINDINGS.filter(binding => binding.bank === 2), bank23BaseOctave)}`,
+        `BANK 3 (${(bank1.coupled ? bank1.instrument : bank23.instrument).toUpperCase()}): ${formatBindings(BANK23_NOTE_BINDINGS.filter(binding => binding.bank === 3), bank23UpperOctave)}`
     ].join("\n");
 }
 
@@ -616,6 +717,56 @@ function setBank1Octave(octave) {
     updateBank1UI();
     renderRibbon();
     recordCompositionTransaction("CHANGE_BANK1_OCTAVE", "Change Bank 1 Octave", before);
+    return true;
+}
+
+function setBank23Instrument(instrumentId) {
+    const instrument = BANK1_INSTRUMENTS.find(candidate => (
+        candidate.id === instrumentId && candidate.id !== "drumkit"
+    ));
+    if (!instrument) throw new RangeError(`Unsupported Bank 2/3 instrument: ${instrumentId}`);
+    if (bank23.instrument === instrument.id) return false;
+
+    const before = beginCompositionTransaction();
+    bank23 = { ...bank23, instrument: instrument.id };
+    updateBank1UI();
+    renderRibbon();
+    recordCompositionTransaction("CHANGE_INSTRUMENT", "Change Bank 2/3 Instrument", before);
+    return true;
+}
+
+function setBank23Octave(octave) {
+    const nextOctave = Number(octave);
+    if (!Number.isInteger(nextOctave)
+        || nextOctave < BANK23_MIN_OCTAVE
+        || nextOctave > BANK23_MAX_OCTAVE) {
+        throw new RangeError(`Bank 2/3 octave must be between ${BANK23_MIN_OCTAVE} and ${BANK23_MAX_OCTAVE}.`);
+    }
+    if (bank23.octave === nextOctave) return false;
+
+    const before = beginCompositionTransaction();
+    bank23 = { ...bank23, octave: nextOctave };
+    updateBank1UI();
+    renderRibbon();
+    recordCompositionTransaction("CHANGE_BANK23_OCTAVE", "Change Bank 2/3 Octave", before);
+    return true;
+}
+
+function setBanksCoupled(coupled) {
+    if (typeof coupled !== "boolean") {
+        throw new TypeError("Bank coupling state must be a boolean.");
+    }
+    if (bank1.coupled === coupled) return false;
+
+    const before = beginCompositionTransaction();
+    bank1 = { ...bank1, coupled };
+    updateBank1UI();
+    renderRibbon();
+    recordCompositionTransaction(
+        "CHANGE_BANK_COUPLING",
+        coupled ? "Couple Banks 1-3" : "Decouple Banks 1-3",
+        before
+    );
     return true;
 }
 
@@ -666,6 +817,14 @@ bank1InstrumentSelect?.addEventListener("change", () => {
 
 bank1OctaveDownBtn?.addEventListener("click", () => setBank1Octave(bank1.octave - 1));
 bank1OctaveUpBtn?.addEventListener("click", () => setBank1Octave(bank1.octave + 1));
+bankCoupleToggle?.addEventListener("change", () => {
+    setBanksCoupled(bankCoupleToggle.checked);
+});
+bank23InstrumentSelect?.addEventListener("change", () => {
+    setBank23Instrument(bank23InstrumentSelect.value);
+});
+bank23OctaveDownBtn?.addEventListener("click", () => setBank23Octave(bank23.octave - 1));
+bank23OctaveUpBtn?.addEventListener("click", () => setBank23Octave(bank23.octave + 1));
 
 bank1DrumSlots?.addEventListener("change", event => {
     const select = event.target.closest("select[data-drum-slot]");
@@ -1304,6 +1463,7 @@ function getCompositionSnapshot() {
         })),
         instruments: [{ ...instrumentSettings }],
         bank1: { ...bank1 },
+        bank23: { ...bank23 },
         bank1DrumKit: cloneState(bank1DrumKit),
         fxChains: cloneState(fxChains),
         tempo: tempoBpm,
@@ -1370,6 +1530,7 @@ function restoreCompositionSnapshot(snapshot) {
         ...(snapshot.instruments?.[0] || {})
     };
     bank1 = normalizeBank1(snapshot.bank1, instrumentSettings.waveform);
+    bank23 = normalizeBank23(snapshot.bank23);
     bank1DrumKit = normalizeBank1DrumKit(snapshot.bank1DrumKit);
     instrumentSettings.waveform = BANK1_WAVEFORM_BY_INSTRUMENT[bank1.instrument]
         || instrumentSettings.waveform;
@@ -2004,6 +2165,7 @@ function loadProject(data, options = {}) {
         compositionData.bank1 || data.bank1,
         instrumentSettings.waveform
     );
+    bank23 = normalizeBank23(compositionData.bank23 || data.bank23);
     bank1DrumKit = normalizeBank1DrumKit(
         compositionData.bank1DrumKit || data.bank1DrumKit
     );
@@ -2110,21 +2272,43 @@ function noteOff(inputId, note = inputId, instrumentId = bank1.instrument) {
     return true;
 }
 
-function resolveBank1Input(key) {
+function resolvePerformanceInput(code) {
     if (bank1.instrument === "drumkit") {
-        const padId = BANK1_DRUM_KEY_BINDINGS[key];
-        return padId ? { kind: "drum", padId } : null;
+        const padId = BANK1_DRUM_KEY_BINDINGS[code];
+        if (!padId) return null;
+        const slot = BANK1_DRUM_SLOTS.find(candidate => candidate.id === padId);
+        const key = slot?.keys.find(label => KEY_CODE_BY_LABEL[label] === code);
+        return { kind: "drum", padId, key };
     }
 
-    const mappedNote = keyMap[key];
-    return mappedNote
-        ? { kind: "note", note: getPlayableNote(mappedNote), instrumentId: bank1.instrument }
-        : null;
+    const bank1Binding = BANK1_NOTE_BINDINGS.find(binding => binding.code === code);
+    if (bank1Binding) {
+        return {
+            kind: "note",
+            note: getPlayableNote(bank1Binding.note, bank1.octave),
+            instrumentId: bank1.instrument,
+            key: bank1Binding.key
+        };
+    }
+
+    if (bank1.instrument === "drumkit") return null;
+    const bank23Binding = BANK23_NOTE_BINDINGS.find(binding => binding.code === code);
+    if (!bank23Binding) return null;
+
+    const octave = bank1.coupled
+        ? bank1.octave + bank23Binding.bank - 1
+        : bank23.octave + bank23Binding.bank - 2;
+    return {
+        kind: "note",
+        note: getPlayableNote(bank23Binding.note, octave),
+        instrumentId: bank1.coupled ? bank1.instrument : bank23.instrument,
+        key: bank23Binding.key
+    };
 }
 
-function startBank1Input(key, inputId) {
-    if (activeBank1Inputs.has(inputId)) return;
-    const action = resolveBank1Input(key);
+function startPerformanceInput(code, inputId) {
+    if (activeKeyboardInputs.has(inputId)) return;
+    const action = resolvePerformanceInput(code);
     if (!action) return;
 
     const started = action.kind === "drum"
@@ -2132,34 +2316,33 @@ function startBank1Input(key, inputId) {
         : noteOn(action.note, action.instrumentId, inputId);
     if (!started) return;
 
-    activeBank1Inputs.set(inputId, action);
+    activeKeyboardInputs.set(inputId, action);
     if (action.kind === "drum") recordDrumHit(action.padId);
-    highlightKey(key);
+    if (action.key) highlightKey(action.key);
 }
 
-function releaseBank1Input(key, inputId) {
-    const action = activeBank1Inputs.get(inputId);
+function releasePerformanceInput(inputId) {
+    const action = activeKeyboardInputs.get(inputId);
     if (!action) return;
-    activeBank1Inputs.delete(inputId);
+    activeKeyboardInputs.delete(inputId);
     if (action.kind === "note") {
         noteOff(inputId, action.note, action.instrumentId);
     }
-    unhighlightKey(key);
+    if (action.key) unhighlightKey(action.key);
 }
 
 document.addEventListener("keydown", (event) => {
     if (event.repeat) return;
 
-    const key = event.key.toLowerCase();
     const target = event.target;
     if (target instanceof HTMLElement && !target.matches("[data-key]")
         && target.closest("input, textarea, select, [contenteditable='true']")) return;
-    startBank1Input(key, `keyboard:${key}`);
+    if (event.code === "Slash" && event.shiftKey) return;
+    startPerformanceInput(event.code, `keyboard:${event.code}`);
 });
 
 document.addEventListener("keyup", (event) => {
-    const key = event.key.toLowerCase();
-    releaseBank1Input(key, `keyboard:${key}`);
+    releasePerformanceInput(`keyboard:${event.code}`);
 });
 
 attackSlider.addEventListener("input", () => {
@@ -2212,7 +2395,7 @@ function stopPlayback() {
     pitchedSynths.forEach(instrumentSynth => instrumentSynth.releaseAll());
     disposeGeneratedVoices();
     activeNotes.clear();
-    activeBank1Inputs.clear();
+    activeKeyboardInputs.clear();
     document.querySelectorAll("[data-key]").forEach(el => el.classList.remove("active"));
 }
 
@@ -2289,9 +2472,27 @@ function renderRibbon() {
     ribbon.appendChild(plot);
 
     const drumMode = bank1.instrument === "drumkit";
+    const bank23BaseOctave = bank1.coupled ? bank1.octave + 1 : bank23.octave;
+    const bank23UpperOctave = bank1.coupled ? bank1.octave + 2 : bank23.octave + 1;
+    const configuredMinOctave = bank1.coupled
+        ? bank1.octave
+        : Math.min(bank1.octave, bank23BaseOctave);
+    const configuredMaxOctave = bank1.coupled
+        ? bank23UpperOctave
+        : Math.max(bank1.octave, bank23UpperOctave);
+    const recordedOctaves = recordingData
+        .filter(event => event.kind !== "drum")
+        .map(event => /^([A-G]#?)(-?\d+)$/.exec(event.note)?.[2])
+        .filter(octave => octave !== undefined)
+        .map(Number)
+        .filter(octave => Number.isInteger(octave) && octave >= 0 && octave <= 10);
+    const minPitchedOctave = Math.min(configuredMinOctave, ...recordedOctaves);
+    const maxPitchedOctave = Math.max(configuredMaxOctave, ...recordedOctaves);
     const laneLabels = drumMode
         ? BANK1_DRUM_SLOTS.map((slot, index) => String(index + 1).padStart(2, "0"))
-        : BANK1_PITCH_CLASSES.map(pitch => `${pitch}${bank1.octave}`);
+        : Array.from({ length: maxPitchedOctave - minPitchedOctave + 1 }, (_, index) => (
+            BANK1_PITCH_CLASSES.map(pitch => `${pitch}${minPitchedOctave + index}`)
+        )).flat();
     const laneHeight = ribbon.clientHeight / laneLabels.length;
     const displayedLaneLabels = drumMode ? laneLabels : [...laneLabels].reverse();
     displayedLaneLabels.forEach((pitch, row) => {
@@ -2348,12 +2549,12 @@ function renderRibbon() {
 
         const startRatio = note.startTick / timelineLengthTicks;
         const durationRatio = note.durationTicks / timelineLengthTicks;
-        const pitchIndex = BANK1_PITCH_CLASSES.indexOf(notePitchClass);
+        const pitchIndex = laneLabels.indexOf(note.note);
         const row = note.kind === "drum"
             ? Math.max(0, drumSlotIndex)
             : pitchIndex === -1
                 ? 0
-                : laneLabels.length - 1 - pitchIndex;
+            : laneLabels.length - 1 - pitchIndex;
 
         block.style.left = `${startRatio * 100}%`;
         block.style.width = `${durationRatio * 100}%`;
@@ -3058,26 +3259,28 @@ playBtn.addEventListener("click", () => {
 
 document.querySelectorAll("[data-key]").forEach(keyElement => {
     const physicalKey = keyElement.dataset.key;
+    const physicalCode = KEY_CODE_BY_LABEL[physicalKey];
+    if (!physicalCode) return;
 
     keyElement.addEventListener("mousedown", () => {
-        startBank1Input(physicalKey, `piano:${physicalKey}`);
+        startPerformanceInput(physicalCode, `piano:${physicalCode}`);
     });
 
     keyElement.addEventListener("mouseup", () => {
-        releaseBank1Input(physicalKey, `piano:${physicalKey}`);
+        releasePerformanceInput(`piano:${physicalCode}`);
     });
 
     keyElement.addEventListener("mouseleave", () => {
-        releaseBank1Input(physicalKey, `piano:${physicalKey}`);
+        releasePerformanceInput(`piano:${physicalCode}`);
     });
 
     keyElement.addEventListener("touchstart", (event) => {
         event.preventDefault();
-        startBank1Input(physicalKey, `piano:${physicalKey}`);
+        startPerformanceInput(physicalCode, `piano:${physicalCode}`);
     });
 
     keyElement.addEventListener("touchend", () => {
-        releaseBank1Input(physicalKey, `piano:${physicalKey}`);
+        releasePerformanceInput(`piano:${physicalCode}`);
     });
 });
 

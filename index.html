@@ -133,7 +133,32 @@
                 <button type="button" id="bank1OctaveUp" aria-label="Raise Bank 1 octave">+</button>
                 <span id="bank1Range" aria-live="polite">C4-B4</span>
             </div>
+            <label class="bank-coupling-control">
+                <input type="checkbox" id="bankCoupleToggle">
+                Couple Banks 1-3 (Bank 1 controls all)
+            </label>
             <div id="bank1DrumSlots" class="bank1-drum-slots" hidden></div>
+        </section>
+
+        <section id="bank23Controller" class="bank-controller" aria-labelledby="bank23Heading">
+            <h2 id="bank23Heading">Banks 2/3 — Linked 24-Key Range</h2>
+            <div class="control">
+                <label for="bank23Instrument">Instrument</label>
+                <select id="bank23Instrument">
+                    <option value="sine">Sine</option>
+                    <option value="square">Square</option>
+                    <option value="saw">Saw</option>
+                    <option value="triangle">Triangle</option>
+                    <option value="noise">Noise</option>
+                </select>
+            </div>
+            <div class="bank1-octave-control">
+                <span>Octave</span>
+                <button type="button" id="bank23OctaveDown" aria-label="Lower Banks 2 and 3 octave">-</button>
+                <output id="bank23OctaveValue" aria-live="polite">3</output>
+                <button type="button" id="bank23OctaveUp" aria-label="Raise Banks 2 and 3 octave">+</button>
+                <span id="bank23Range" aria-live="polite">C3-B4</span>
+            </div>
         </section>
 
         <div class="control">

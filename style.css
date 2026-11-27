@@ -98,8 +98,20 @@ button:disabled {
     opacity: 0.5;
 }
 
-.bank1-controller {
+.bank1-controller,
+.bank-controller {
     margin: 18px 0;
+}
+
+.bank-coupling-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0;
+}
+
+.bank-coupling-control input {
+    margin: 0;
 }
 
 .bank1-octave-control {
