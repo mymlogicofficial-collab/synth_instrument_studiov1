@@ -57,6 +57,12 @@ const DEFAULT_BEATS_PER_BAR = 4;
 const DEFAULT_BEAT_UNIT = 4;
 const DEFAULT_TRACK_ID = "track_1";
 const DEFAULT_TRACK_NAME = "Lead";
+const MASTER_MIN_DBFS = -60;
+const MASTER_MAX_DBFS = -6;
+const DEFAULT_MASTER_DBFS = -30;
+const MASTER_MIN_GAIN = Math.pow(10, MASTER_MIN_DBFS / 20);
+const MASTER_MAX_GAIN = Math.pow(10, MASTER_MAX_DBFS / 20);
+const DEFAULT_MASTER_GAIN = Math.pow(10, DEFAULT_MASTER_DBFS / 20);
 const mixerPrimitives = [
     {
         id: "masterVolume",
@@ -65,9 +71,9 @@ const mixerPrimitives = [
         type: "slider",
         target: "master.volume",
         min: 0,
-        max: 1,
-        step: 0.01,
-        format: "percent"
+        max: 100,
+        step: 0.1,
+        format: "dbfs"
     },
     {
         id: "trackVolume",
@@ -403,7 +409,7 @@ function defaultTrackMixerSettings(trackId) {
     const isPrimaryTrack = trackId === DEFAULT_TRACK_ID;
     return {
         volume: isPrimaryTrack ? 1 : 0.77,
-        pan: isPrimaryTrack ? 0 : 0.1,
+        pan: 0,
         mute: false,
         solo: false
     };
@@ -411,7 +417,7 @@ function defaultTrackMixerSettings(trackId) {
 
 function createDefaultMixerState(trackList = tracks) {
     return {
-        master: { volume: 0.8 },
+        master: { volume: DEFAULT_MASTER_GAIN },
         tracks: Object.fromEntries(trackList.map(track => [
             track.id,
             defaultTrackMixerSettings(track.id)
@@ -439,7 +445,7 @@ function normalizeMixerState(savedState, trackList, legacyTracks = []) {
             ...defaultTrackMixerSettings(trackId),
             ...(settings && typeof settings === "object" ? settings : {}),
             volume: clampMixerValue(settings?.volume, 0, 1, 0.77),
-            pan: clampMixerValue(settings?.pan, -1, 1, 0.1),
+            pan: clampMixerValue(settings?.pan, -1, 1, 0),
             mute: settings?.mute === true,
             solo: settings?.solo === true
         };
@@ -467,9 +473,9 @@ function normalizeMixerState(savedState, trackList, legacyTracks = []) {
             ...savedMaster,
             volume: clampMixerValue(
                 savedMaster.volume ?? savedState?.masterVolume,
-                0,
-                1,
-                0.85
+                MASTER_MIN_GAIN,
+                MASTER_MAX_GAIN,
+                DEFAULT_MASTER_GAIN
             )
         },
         tracks: normalizedTracks
@@ -480,6 +486,19 @@ function clampMixerValue(value, minimum, maximum, fallback) {
     const numericValue = Number(value);
     if (!Number.isFinite(numericValue)) return fallback;
     return Math.min(maximum, Math.max(minimum, numericValue));
+}
+
+function masterGainFromSliderValue(value) {
+    const position = clampMixerValue(value, 0, 100, 0);
+    const dbfs = MASTER_MIN_DBFS
+        + (position / 100) * (MASTER_MAX_DBFS - MASTER_MIN_DBFS);
+    return Math.pow(10, dbfs / 20);
+}
+
+function masterSliderValueFromGain(gain) {
+    const safeGain = clampMixerValue(gain, MASTER_MIN_GAIN, MASTER_MAX_GAIN, DEFAULT_MASTER_GAIN);
+    const dbfs = 20 * Math.log10(safeGain);
+    return ((dbfs - MASTER_MIN_DBFS) / (MASTER_MAX_DBFS - MASTER_MIN_DBFS)) * 100;
 }
 
 function deepFreeze(value) {
@@ -1080,8 +1099,14 @@ function applyMasterVolume() {
 }
 
 function setMasterVolume(volume) {
-    if (!Number.isFinite(Number(volume)) || Number(volume) < 0 || Number(volume) > 1) {
-        throw new RangeError("Master volume must be between 0 and 1.");
+    if (
+        !Number.isFinite(Number(volume))
+        || Number(volume) < MASTER_MIN_GAIN
+        || Number(volume) > MASTER_MAX_GAIN
+    ) {
+        throw new RangeError(
+            `Master volume gain must map between ${MASTER_MIN_DBFS} and ${MASTER_MAX_DBFS} dBFS.`
+        );
     }
     mixerState.master.volume = Number(volume);
     applyMasterVolume();
@@ -1174,11 +1199,18 @@ function setPrimitiveValue(id, value) {
     } else if (primitive.type === "toggle" && typeof value !== "boolean") {
         throw new TypeError(`${primitive.label} must be a boolean.`);
     }
-    applyPrimitiveTarget(primitive.target, normalizedValue);
+    const targetValue = primitive.format === "dbfs"
+        ? masterGainFromSliderValue(normalizedValue)
+        : normalizedValue;
+    applyPrimitiveTarget(primitive.target, targetValue);
 }
 
 function formatMixerPrimitiveValue(primitive, value) {
     if (primitive.format === "percent") return `${Math.round(value * 100)}%`;
+    if (primitive.format === "dbfs") {
+        const dbfs = MASTER_MIN_DBFS + (value / 100) * (MASTER_MAX_DBFS - MASTER_MIN_DBFS);
+        return `${dbfs.toFixed(1)} dBFS`;
+    }
     if (primitive.format === "pan") {
         if (value === 0) return "C";
         return value < 0
@@ -1249,12 +1281,15 @@ function syncMixerControls() {
     if (!mixerControls) return;
     mixerPrimitives.forEach(primitive => {
         const value = getMixerPrimitiveValue(primitive.target);
+        const controlValue = primitive.format === "dbfs"
+            ? masterSliderValueFromGain(value)
+            : value;
         const control = mixerControls.querySelector(`[data-mixer-primitive="${primitive.id}"]`);
         if (!control) return;
         if (primitive.type === "slider") {
-            control.value = String(value);
+            control.value = String(controlValue);
             const output = mixerControls.querySelector(`[data-mixer-value="${primitive.id}"]`);
-            if (output) output.value = formatMixerPrimitiveValue(primitive, value);
+            if (output) output.value = formatMixerPrimitiveValue(primitive, controlValue);
             return;
         }
         control.setAttribute("aria-pressed", String(value));

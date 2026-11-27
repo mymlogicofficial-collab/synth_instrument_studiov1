@@ -293,7 +293,7 @@ button:disabled {
 
 .mixer-slider-control {
     display: grid;
-    grid-template-columns: 58px minmax(100px, 1fr) 54px;
+    grid-template-columns: 58px minmax(100px, 1fr) 78px;
     align-items: center;
     gap: 8px;
     width: 100%;
