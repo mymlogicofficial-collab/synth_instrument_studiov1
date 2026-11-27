@@ -32,6 +32,12 @@ const importBtn = document.getElementById("importBtn");
 const importFile = document.getElementById("importFile");
 
 const ribbon = document.getElementById("ribbon");
+const ribbonPitchNames = [
+    "C3", "C#3", "D3", "D#3", "E3", "F3",
+    "F#3", "G3", "G#3", "A3", "A#3", "B3"
+];
+const ribbonPitchGutterWidth = 22;
+const ribbonCellBorderSize = 2;
 
 let isRecording = false;
 let isPlaying = false;
@@ -380,14 +386,40 @@ function renderRibbonCell() {
     const cell = document.createElement("div");
     cell.className = "ribbon-cell";
     cell.dataset.cellId = ribbonCell.id;
-    cell.title = "Empty ribbon cell";
+    cell.title = "Cell A piano roll";
     cell.tabIndex = 0;
     cell.setAttribute("role", "button");
-    cell.setAttribute("aria-label", "Empty ribbon cell");
+    cell.setAttribute("aria-label", "Cell A piano roll");
 
     cell.style.left = `${ribbonCell.start}%`;
     cell.style.width = `${ribbonCell.duration}%`;
     if (ribbonCell.selected) cell.classList.add("selected");
+
+    const innerWidth = Math.max(1, cell.clientWidth - ribbonCellBorderSize * 2);
+    const innerHeight = Math.max(1, cell.clientHeight - ribbonCellBorderSize * 2);
+    const plotWidth = Math.max(1, innerWidth - ribbonPitchGutterWidth);
+    const laneHeight = innerHeight / ribbonPitchNames.length;
+
+    [...ribbonPitchNames].reverse().forEach((pitch, row) => {
+        const lane = document.createElement("div");
+        lane.className = "ribbon-pitch-lane";
+        if (pitch.includes("#")) lane.classList.add("sharp");
+        lane.style.top = `${row * laneHeight}px`;
+        lane.style.height = `${laneHeight}px`;
+
+        const label = document.createElement("span");
+        label.className = "ribbon-pitch-label";
+        label.textContent = pitch;
+        lane.appendChild(label);
+        cell.appendChild(lane);
+    });
+
+    for (let division = 1; division < 4; division++) {
+        const tick = document.createElement("div");
+        tick.className = "ribbon-time-tick";
+        tick.style.left = `${ribbonPitchGutterWidth + (plotWidth * division) / 4}px`;
+        cell.appendChild(tick);
+    }
 
     const selectCell = () => {
         ribbonCell.selected = true;
@@ -451,10 +483,20 @@ function renderRibbon() {
     }
 
     const timelineDuration = getRibbonTimelineDuration(ribbonNotes);
+    const cellInnerWidth = Math.max(
+        1,
+        cell.clientWidth - ribbonCellBorderSize * 2
+    );
+    const plotWidth = Math.max(1, cellInnerWidth - ribbonPitchGutterWidth);
+    const laneHeight = Math.max(
+        1,
+        cell.clientHeight - ribbonCellBorderSize * 2
+    ) / ribbonPitchNames.length;
 
     ribbonNotes.forEach(note => {
         const block = document.createElement("div");
         block.className = "ribbon-block";
+        if (note.note.includes("#")) block.classList.add("sharp");
         block.dataset.note = note.note;
         block.dataset.start = String(note.start);
         block.dataset.duration = String(note.duration);
@@ -467,16 +509,21 @@ function renderRibbon() {
 
         block.classList.add("inside-cell");
 
-        const left = Math.min(100, Math.max(0, (note.start / timelineDuration) * 100));
-        const remainingWidth = 100 - left;
-        const durationWidth = (note.duration / timelineDuration) * 100;
-        const width = Math.min(
-            remainingWidth,
-            Math.max(durationWidth + 6, Math.min(8, remainingWidth))
+        const startRatio = Math.min(1, Math.max(0, note.start / timelineDuration));
+        const durationRatio = Math.min(
+            1 - startRatio,
+            Math.max(0, note.duration / timelineDuration)
         );
-        block.style.left = `${left}%`;
-        block.style.width = `${width}%`;
-        if (width * cell.clientWidth / 100 >= 24) {
+        const pitchIndex = ribbonPitchNames.indexOf(note.note);
+        const row = pitchIndex === -1
+            ? 0
+            : ribbonPitchNames.length - 1 - pitchIndex;
+
+        block.style.left = `${ribbonPitchGutterWidth + plotWidth * startRatio}px`;
+        block.style.width = `${plotWidth * durationRatio}px`;
+        block.style.top = `${row * laneHeight}px`;
+        block.style.height = `${laneHeight}px`;
+        if (plotWidth * durationRatio >= 24) {
             block.textContent = note.note;
         }
 

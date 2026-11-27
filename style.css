@@ -197,7 +197,7 @@ textarea {
 
 #ribbon {
     width: 100%;
-    height: 80px;
+    height: 116px;
 
     background: #181818;
 
@@ -288,10 +288,52 @@ textarea {
     white-space: nowrap;
 }
 
+.ribbon-block.sharp {
+    background: #5daee8;
+}
+
+.ribbon-pitch-lane {
+    position: absolute;
+    left: 0;
+    right: 0;
+
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.ribbon-pitch-lane.sharp {
+    background: rgba(0, 0, 0, 0.12);
+}
+
+.ribbon-pitch-label {
+    position: absolute;
+    top: 50%;
+    left: 1px;
+    width: 19px;
+
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 7px;
+    line-height: 1;
+    text-align: right;
+    transform: translateY(-50%);
+}
+
+.ribbon-time-tick {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+
+    background: rgba(255, 255, 255, 0.18);
+    pointer-events: none;
+    z-index: 1;
+}
+
 .ribbon-cell {
     position: absolute;
     top: 6px;
-    height: 68px;
+    height: 104px;
     overflow: hidden;
 
     background: rgba(124, 199, 255, 0.08);
