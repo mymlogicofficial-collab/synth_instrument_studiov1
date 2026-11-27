@@ -270,5 +270,42 @@ textarea {
 }
 
 .ribbon-block {
+    z-index: 4;
+}
+
+.ribbon-block.inside-cell {
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    padding: 0 3px;
+
+    background: #7cc7ff;
+    border-color: #ffffff;
+    box-shadow: 0 0 8px rgba(124, 199, 255, 0.75);
+    color: #111;
+    font-size: 10px;
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+.ribbon-cell {
+    position: absolute;
+    top: 6px;
+    height: 68px;
+    overflow: hidden;
+
+    background: rgba(124, 199, 255, 0.08);
+    border: 2px dashed #7cc7ff;
+    border-radius: 6px;
+
+    cursor: pointer;
+    pointer-events: auto;
     z-index: 3;
+}
+
+.ribbon-cell.selected {
+    background: rgba(124, 199, 255, 0.18);
+    border-style: solid;
+    border-color: #ffffff;
+    box-shadow: 0 0 10px rgba(124, 199, 255, 0.95);
 }

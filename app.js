@@ -40,7 +40,12 @@ let recordingData = [];
 let playbackTimeouts = [];
 let regionCount = 4;
 let ribbonNotes = [];
-let selectedNote = null;
+let ribbonCell = {
+    id: "ribbon-cell-1",
+    start: 0,
+    duration: 25,
+    selected: true
+};
 
 let synth;
 const activeNotes = new Set();
@@ -69,6 +74,8 @@ const playhead = (() => {
     let startPerf = 0;
     let pausedAtMs = 0;
     let totalDurationMs = 0;
+    let rangeStartPct = 0;
+    let rangeWidthPct = 100;
     let running = false;
 
     function ensureEl() {
@@ -85,9 +92,10 @@ const playhead = (() => {
     function setPosition(ms) {
         const el = ensureEl();
         if (!el) return;
-        const pct = totalDurationMs > 0
-            ? Math.min(Math.max((ms / totalDurationMs) * 100, 0), 100)
+        const progress = totalDurationMs > 0
+            ? Math.min(Math.max(ms / totalDurationMs, 0), 1)
             : 0;
+        const pct = rangeStartPct + progress * rangeWidthPct;
         el.style.left = `${pct}%`;
     }
 
@@ -111,10 +119,17 @@ const playhead = (() => {
     function start(durationMs) {
         totalDurationMs = durationMs || getMaxRecordingTime();
         if (totalDurationMs <= 0) return;
+        pausedAtMs = 0;
         running = true;
         startPerf = performance.now();
         cancelAnimationFrame(rafId);
         rafId = requestAnimationFrame(tick);
+    }
+
+    function setRange(startPct, widthPct) {
+        rangeStartPct = startPct;
+        rangeWidthPct = widthPct;
+        setPosition(pausedAtMs);
     }
 
     function pause() {
@@ -139,7 +154,7 @@ const playhead = (() => {
         setPosition(0);
     }
 
-    return { start, pause, stop, reset, ensureEl };
+    return { start, pause, stop, reset, setRange, ensureEl };
 })();
 
 async function buildSynth() {
@@ -202,9 +217,10 @@ function buildProjectData() {
         decay: Number(decaySlider.value),
         sustain: Number(sustainSlider.value),
         release: Number(releaseSlider.value),
-        duration: Number(durationSlider.value),
+        duration: durationSlider ? Number(durationSlider.value) : 1,
         regionCount: regionCount,
-        recordingData: recordingData
+        recordingData: recordingData,
+        ribbonCell: ribbonCell
     };
 }
 
@@ -243,16 +259,24 @@ function loadProject(data) {
     decaySlider.value = data.decay ?? 0.2;
     sustainSlider.value = data.sustain ?? 0.6;
     releaseSlider.value = data.release ?? 1;
-    durationSlider.value = data.duration ?? 1;
+    if (durationSlider) durationSlider.value = data.duration ?? 1;
 
     attackValue.textContent = attackSlider.value;
     decayValue.textContent = decaySlider.value;
     sustainValue.textContent = sustainSlider.value;
     releaseValue.textContent = releaseSlider.value;
-    durationValue.textContent = durationSlider.value;
+    if (durationValue) durationValue.textContent = durationSlider?.value ?? "1";
 
     regionCount = Math.max(1, Number(data.regionCount) || 4);
     recordingData = data.recordingData || [];
+    ribbonCell = data.ribbonCell
+        ? {
+            id: "ribbon-cell-1",
+            start: Number(data.ribbonCell.start) || 0,
+            duration: Math.max(1, Number(data.ribbonCell.duration) || 25),
+            selected: data.ribbonCell.selected !== false
+        }
+        : { id: "ribbon-cell-1", start: 0, duration: 25, selected: true };
 
     waveformSelect.dispatchEvent(new Event("change"));
     updateEnvelope();
@@ -350,6 +374,40 @@ function getRegionName(index) {
     return label;
 }
 
+function renderRibbonCell() {
+    if (!ribbon) return null;
+
+    const cell = document.createElement("div");
+    cell.className = "ribbon-cell";
+    cell.dataset.cellId = ribbonCell.id;
+    cell.title = "Empty ribbon cell";
+    cell.tabIndex = 0;
+    cell.setAttribute("role", "button");
+    cell.setAttribute("aria-label", "Empty ribbon cell");
+
+    cell.style.left = `${ribbonCell.start}%`;
+    cell.style.width = `${ribbonCell.duration}%`;
+    if (ribbonCell.selected) cell.classList.add("selected");
+
+    const selectCell = () => {
+        ribbonCell.selected = true;
+        document.querySelectorAll(".ribbon-cell").forEach(el => el.classList.remove("selected"));
+        document.querySelectorAll(".ribbon-block").forEach(el => el.classList.remove("selected"));
+        cell.classList.add("selected");
+    };
+
+    cell.addEventListener("click", selectCell);
+    cell.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            selectCell();
+        }
+    });
+
+    ribbon.appendChild(cell);
+    return cell;
+}
+
 function renderRegions(count = regionCount) {
     if (!ribbon) return;
     const safeCount = Math.max(1, Number(count) || 1);
@@ -378,42 +436,51 @@ function renderRibbon() {
     ribbon.innerHTML = "";
     renderRegions(regionCount);
     playhead.ensureEl();
+    const cell = renderRibbonCell();
+    playhead.setRange(ribbonCell.start, ribbonCell.duration);
 
     if (recordingData.length === 0) {
         playhead.reset();
         return;
     }
 
-    const maxTime = Math.max(
-        ...recordingData.map(e => e.time)
-    );
+    ribbonNotes = buildRibbonNotes();
+    if (ribbonNotes.length === 0) {
+        playhead.reset();
+        return;
+    }
 
-    const activeNoteStarts = {};
+    const timelineDuration = getRibbonTimelineDuration(ribbonNotes);
 
-    recordingData.forEach(event => {
-        if (event.type === "noteOn") {
-            activeNoteStarts[event.note] = event.time;
+    ribbonNotes.forEach(note => {
+        const block = document.createElement("div");
+        block.className = "ribbon-block";
+        block.dataset.note = note.note;
+        block.dataset.start = String(note.start);
+        block.dataset.duration = String(note.duration);
+        block.title = `${note.note} - Start: ${note.start.toFixed(0)} ms - Duration: ${note.duration.toFixed(0)} ms`;
+        block.setAttribute(
+            "aria-label",
+            `${note.note} note, starts at ${note.start.toFixed(0)} milliseconds, duration ${note.duration.toFixed(0)} milliseconds`
+        );
+        block.setAttribute("role", "img");
+
+        block.classList.add("inside-cell");
+
+        const left = Math.min(100, Math.max(0, (note.start / timelineDuration) * 100));
+        const remainingWidth = 100 - left;
+        const durationWidth = (note.duration / timelineDuration) * 100;
+        const width = Math.min(
+            remainingWidth,
+            Math.max(durationWidth + 6, Math.min(8, remainingWidth))
+        );
+        block.style.left = `${left}%`;
+        block.style.width = `${width}%`;
+        if (width * cell.clientWidth / 100 >= 24) {
+            block.textContent = note.note;
         }
 
-        if (event.type === "noteOff") {
-            const start = activeNoteStarts[event.note];
-            if (start === undefined) return;
-
-            const block = document.createElement("div");
-            block.className = "ribbon-block";
-
-            const left = (start / maxTime) * 100;
-            const duration = event.time - start;
-            const width = (duration / maxTime) * 100;
-
-            block.style.left = `${left}%`;
-            block.style.width = `${Math.max(width, 0.5)}%`;
-            block.title = `${event.note}`;
-
-            ribbon.appendChild(block);
-
-            delete activeNoteStarts[event.note];
-        }
+        cell.appendChild(block);
     });
 
     playhead.reset();
@@ -443,9 +510,14 @@ function buildRibbonNotes() {
     return notes;
 }
 
+function getRibbonTimelineDuration(notes = buildRibbonNotes()) {
+    return Math.max(1, ...notes.map(note => note.start + note.duration));
+}
+
 recordBtn.addEventListener("click", () => {
     stopPlayback();
     recordingData = [];
+    ribbonNotes = [];
     renderRibbon();
     recordingStart = performance.now();
     isRecording = true;
@@ -504,13 +576,8 @@ downloadBtn?.addEventListener("click", () => {
 });
 
 copyBtn?.addEventListener("click", async () => {
-    const data = buildProjectData();
-
-    await navigator.clipboard.writeText(
-        JSON.stringify(data, null, 2)
-    );
-
-    console.log("PROJECT COPIED", data.name);
+    await navigator.clipboard.writeText(JSON.stringify(ribbonCell, null, 2));
+    console.log("RIBBON CELL COPIED", ribbonCell.id);
 });
 
 pauseBtn.addEventListener("click", () => {
@@ -547,10 +614,22 @@ playBtn.addEventListener("click", () => {
     isPlaying = true;
     console.log("PLAY");
 
-    const maxTime = Math.max(...recordingData.map(e => e.time || 0));
-    playhead.start(maxTime);
+    const timelineDuration = getRibbonTimelineDuration();
+    const cellPlaybackDuration = timelineDuration * (ribbonCell.duration / 100);
+    playhead.setRange(ribbonCell.start, ribbonCell.duration);
+    playhead.start(cellPlaybackDuration);
 
-    recordingData.forEach((event, index) => {
+    const playbackEvents = recordingData
+        .map(event => ({
+            event,
+            time: Math.min(
+                cellPlaybackDuration,
+                Math.max(0, (event.time / timelineDuration) * cellPlaybackDuration)
+            )
+        }))
+        .sort((a, b) => a.time - b.time);
+
+    playbackEvents.forEach(({ event, time }, index) => {
         const timeoutId = setTimeout(() => {
             const keyName = noteToKeyMap[event.note];
 
@@ -562,11 +641,11 @@ playBtn.addEventListener("click", () => {
                 if (keyName) unhighlightKey(keyName);
             }
 
-            if (index === recordingData.length - 1) {
+            if (index === playbackEvents.length - 1) {
                 isPlaying = false;
                 playhead.stop(true);
             }
-        }, event.time);
+        }, time);
 
         playbackTimeouts.push(timeoutId);
     });

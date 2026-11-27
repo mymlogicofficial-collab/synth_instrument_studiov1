@@ -141,7 +141,7 @@ without losing context.
 
 ## Timing Philosophy
 
-SIS does not aim to become a traditional metronome-driven workflow.
+SIS does not aim to become a traditional metronome-driven workflow. SIS uses a 'tister' instead of a metranome. a tister= tist tist, tist tist, tist tis tist, tist tist, ...etc... . it promotes motion, not just timing.
 
 Future timing guidance should:
 
