@@ -94,6 +94,7 @@ const KEY_CODE_BY_LABEL = {
     p: "KeyP",
     "[": "BracketLeft",
     "=": "Equal",
+    "]": "BracketRight",
     z: "KeyZ",
     s: "KeyS",
     x: "KeyX",
@@ -115,6 +116,9 @@ const KEY_CODE_BY_LABEL = {
 const BANK23_KEY_LABELS = [
     ["i", "9", "o", "0", "p", "[", "=", "z", "s", "x", "d", "c"],
     ["v", "g", "b", "h", "n", "m", "k", ",", "l", ".", ";", "/"]
+];
+const BANK23_KEY_ALIASES = [
+    { bank: 2, code: KEY_CODE_BY_LABEL["]"], key: "z", label: "]", note: "G" }
 ];
 const BANK1_INSTRUMENTS = [
     { id: "sine", label: "Sine" },
@@ -677,7 +681,13 @@ function updateBank1UI() {
     }
 
     const formatBindings = (bindings, octave) => bindings
-        .map(binding => `${binding.key.toUpperCase()}=${getPlayableNote(binding.note, octave)}`)
+        .map(binding => {
+            const aliases = BANK23_KEY_ALIASES
+                .filter(alias => alias.bank === binding.bank && alias.note === binding.note)
+                .map(alias => alias.label.toUpperCase());
+            const labels = [binding.key.toUpperCase(), ...aliases].join("/");
+            return `${labels}=${getPlayableNote(binding.note, octave)}`;
+        })
         .join("  ");
     const bank23BaseOctave = bank1.coupled ? bank1.octave + 1 : bank23.octave;
     const bank23UpperOctave = bank1.coupled ? bank1.octave + 2 : bank23.octave + 1;
@@ -2292,7 +2302,8 @@ function resolvePerformanceInput(code) {
     }
 
     if (bank1.instrument === "drumkit") return null;
-    const bank23Binding = BANK23_NOTE_BINDINGS.find(binding => binding.code === code);
+    const bank23Binding = BANK23_NOTE_BINDINGS.find(binding => binding.code === code)
+        || BANK23_KEY_ALIASES.find(binding => binding.code === code);
     if (!bank23Binding) return null;
 
     const octave = bank1.coupled

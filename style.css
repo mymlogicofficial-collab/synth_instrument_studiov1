@@ -159,6 +159,23 @@ button:disabled {
     max-width: 100%;
     margin: 10px auto 0;
     user-select: none;
+    display: grid;
+    gap: 18px;
+    overflow-x: auto;
+}
+
+.piano-bank {
+    width: 406px;
+}
+
+.piano-bank h3 {
+    margin: 0 0 6px;
+    text-align: center;
+}
+
+.white-key[data-key="z"] {
+    font-size: 0.7rem;
+    white-space: nowrap;
 }
 
 .black-row {
