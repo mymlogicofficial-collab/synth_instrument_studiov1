@@ -2245,7 +2245,16 @@ async function preparePlaybackAssets(events) {
     const instrumentIds = new Set(events.map(event => (
         event.kind === "drum" ? "drumkit" : getTimelineEventInstrument(event)
     )));
+    const needsSampleLoading = [...instrumentIds].some(instrumentId => (
+        instrumentId === "drumkit" || MELODIC_SAMPLE_INSTRUMENTS[instrumentId]
+    ));
+    if (needsSampleLoading && audioStatus) {
+        audioStatus.textContent = "Loading playback samples...";
+    }
     await Promise.all([...instrumentIds].map(prepareInstrumentAssets));
+    if (needsSampleLoading && audioStatus) {
+        audioStatus.textContent = "Playback samples ready; audio ready.";
+    }
 }
 
 function preloadInstrumentAssets(instrumentId) {
@@ -2285,7 +2294,9 @@ function playSampleVoice(pack, mapping, velocity) {
         throw new Error(`Audio sample pack "${pack.id}" references missing sample "${mapping.sampleId}".`);
     }
     const buffer = sampleBuffers.get(sample.url);
-    if (!buffer) return false;
+    if (!buffer) {
+        throw new Error(`Audio sample "${sample.url}" has not been loaded.`);
+    }
 
     const normalizedVelocity = Number(velocity);
     if (!Number.isFinite(normalizedVelocity) || normalizedVelocity < 0 || normalizedVelocity > 1) {
@@ -2341,7 +2352,9 @@ function playMelodicSample(instrumentId, noteName, inputId, velocity, settings, 
     const sampleUrl = zone.samples[roundRobinIndex % zone.samples.length];
     melodicRoundRobinIndexes.set(roundRobinKey, roundRobinIndex + 1);
     const buffer = sampleBuffers.get(sampleUrl);
-    if (!buffer) return false;
+    if (!buffer) {
+        throw new Error(`Audio sample "${sampleUrl}" has not been loaded.`);
+    }
 
     const normalizedVelocity = Number(velocity);
     if (!Number.isFinite(normalizedVelocity) || normalizedVelocity < 0 || normalizedVelocity > 1) {
@@ -2932,6 +2945,7 @@ function stopPlayback() {
 
     pitchedSynths.forEach(instrumentSynth => instrumentSynth.releaseAll());
     disposeGeneratedVoices();
+    disposeActiveSampleSources();
     activeNotes.clear();
     activeKeyboardInputs.clear();
     document.querySelectorAll("[data-key]").forEach(el => el.classList.remove("active"));
