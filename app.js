@@ -81,6 +81,7 @@ const KEY_CODE_BY_LABEL = {
     "3": "Digit3",
     e: "KeyE",
     r: "KeyR",
+    f: "KeyF",
     "5": "Digit5",
     t: "KeyT",
     "6": "Digit6",
@@ -823,6 +824,7 @@ startBtn.addEventListener("click", async () => {
 
 bank1InstrumentSelect?.addEventListener("change", () => {
     setBank1Instrument(bank1InstrumentSelect.value);
+    bank1InstrumentSelect.blur();
 });
 
 bank1OctaveDownBtn?.addEventListener("click", () => setBank1Octave(bank1.octave - 1));
@@ -832,13 +834,17 @@ bankCoupleToggle?.addEventListener("change", () => {
 });
 bank23InstrumentSelect?.addEventListener("change", () => {
     setBank23Instrument(bank23InstrumentSelect.value);
+    bank23InstrumentSelect.blur();
 });
 bank23OctaveDownBtn?.addEventListener("click", () => setBank23Octave(bank23.octave - 1));
 bank23OctaveUpBtn?.addEventListener("click", () => setBank23Octave(bank23.octave + 1));
 
 bank1DrumSlots?.addEventListener("change", event => {
     const select = event.target.closest("select[data-drum-slot]");
-    if (select) setBank1DrumSound(select.dataset.drumSlot, select.value);
+    if (select) {
+        setBank1DrumSound(select.dataset.drumSlot, select.value);
+        select.blur();
+    }
 });
 
 function buildProjectData() {
