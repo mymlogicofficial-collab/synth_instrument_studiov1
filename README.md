@@ -22,6 +22,7 @@ A lightweight, creation-first instrument studio focused on rapid music prototypi
 - Waveform selection
 - ADSR envelope controls
 - Duration control
+- Bank 1 drums use a reusable, sample-pack-based playback engine
 
 ### Input
 - Keyboard input
@@ -136,6 +137,14 @@ Future Layer
 ```
 
 without losing context.
+
+## Drum Sample Attribution
+
+The bundled samples in `samples/salamander/` are from the Salamander Drumkit by
+Alexander, obtained from the [Internet Archive Salamander Drumkit collection](https://archive.org/details/SalamanderDrumkit).
+They are redistributed under the [Creative Commons Attribution-ShareAlike 3.0 license](https://creativecommons.org/licenses/by-sa/3.0/).
+The floor-tom sample is a low-tom variation because the source kit does not
+provide a separately labelled floor-tom sample.
 
 ---
 

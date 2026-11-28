@@ -14,6 +14,7 @@ const durationSlider = document.getElementById("duration");
 const durationValue = document.getElementById("durationValue");
 
 const startBtn = document.getElementById("startBtn");
+const audioStatus = document.getElementById("audioStatus");
 const bank1InstrumentSelect = document.getElementById("bank1Instrument");
 const bank1OctaveDownBtn = document.getElementById("bank1OctaveDown");
 const bank1OctaveUpBtn = document.getElementById("bank1OctaveUp");
@@ -96,6 +97,7 @@ const KEY_CODE_BY_LABEL = {
     "[": "BracketLeft",
     "=": "Equal",
     "]": "BracketRight",
+    a: "KeyA",
     z: "KeyZ",
     s: "KeyS",
     x: "KeyX",
@@ -106,6 +108,7 @@ const KEY_CODE_BY_LABEL = {
     b: "KeyB",
     h: "KeyH",
     n: "KeyN",
+    j: "KeyJ",
     m: "KeyM",
     k: "KeyK",
     ",": "Comma",
@@ -115,11 +118,8 @@ const KEY_CODE_BY_LABEL = {
     "/": "Slash"
 };
 const BANK23_KEY_LABELS = [
-    ["i", "9", "o", "0", "p", "[", "=", "z", "s", "x", "d", "c"],
-    ["v", "g", "b", "h", "n", "m", "k", ",", "l", ".", ";", "/"]
-];
-const BANK23_KEY_ALIASES = [
-    { bank: 2, code: KEY_CODE_BY_LABEL["]"], key: "z", label: "]", note: "G" }
+    ["i", "9", "o", "0", "p", "[", "=", "]", "a", "z", "s", "x"],
+    ["c", "f", "v", "g", "b", "n", "j", "m", "k", ",", "l", "."]
 ];
 const BANK1_INSTRUMENTS = [
     { id: "sine", label: "Sine" },
@@ -193,36 +193,6 @@ const BANK1_DRUM_SOUNDS = [
     { id: "gm_83_jingle_bell", label: "Jingle Bell", midiNote: 83, family: "metal" },
     { id: "gm_84_bell_tree", label: "Bell Tree", midiNote: 84, family: "metal" }
 ];
-const BANK1_METAL_DRUM_PROFILES = {
-    42: { decay: 0.07, resonance: 6900, octaves: 1.1, harmonicity: 5.8, modulationIndex: 24 },
-    44: { decay: 0.05, resonance: 7000, octaves: 0.9, harmonicity: 6.2, modulationIndex: 20 },
-    46: { decay: 0.5, resonance: 5600, octaves: 1.7, harmonicity: 5.4, modulationIndex: 34 },
-    49: { decay: 1.15, resonance: 3000, octaves: 2.4, harmonicity: 5.8, modulationIndex: 42 },
-    51: { decay: 0.72, resonance: 4200, octaves: 1.9, harmonicity: 5.2, modulationIndex: 32 },
-    52: { decay: 0.95, resonance: 2600, octaves: 2.7, harmonicity: 6.4, modulationIndex: 48 },
-    53: { decay: 0.2, resonance: 1700, octaves: 1, harmonicity: 4.2, modulationIndex: 18 },
-    54: { decay: 0.24, resonance: 4300, octaves: 1.2, harmonicity: 5.5, modulationIndex: 26 },
-    55: { decay: 0.46, resonance: 5000, octaves: 1.6, harmonicity: 5.8, modulationIndex: 34 },
-    56: { decay: 0.2, resonance: 900, octaves: 0.8, harmonicity: 3.8, modulationIndex: 14 },
-    57: { decay: 1.25, resonance: 2800, octaves: 2.5, harmonicity: 6.1, modulationIndex: 46 },
-    59: { decay: 0.76, resonance: 4000, octaves: 1.8, harmonicity: 5.3, modulationIndex: 32 },
-    80: { decay: 0.09, resonance: 5600, octaves: 0.8, harmonicity: 6.5, modulationIndex: 24 },
-    81: { decay: 0.55, resonance: 3900, octaves: 1.7, harmonicity: 6.1, modulationIndex: 32 },
-    83: { decay: 0.32, resonance: 3400, octaves: 1.4, harmonicity: 5.7, modulationIndex: 28 },
-    84: { decay: 0.68, resonance: 3200, octaves: 1.8, harmonicity: 5.9, modulationIndex: 36 }
-};
-const BANK1_NOISE_DRUM_PROFILES = {
-    37: { decay: 0.045, highpass: 2400, type: "white" },
-    38: { decay: 0.16, highpass: 900, type: "white" },
-    39: { decay: 0.22, highpass: 550, type: "pink" },
-    40: { decay: 0.11, highpass: 1700, type: "white" },
-    58: { decay: 0.42, highpass: 1300, type: "pink" },
-    69: { decay: 0.14, highpass: 4500, type: "white" },
-    70: { decay: 0.09, highpass: 3300, type: "pink" },
-    73: { decay: 0.2, highpass: 1400, type: "pink" },
-    74: { decay: 0.44, highpass: 1000, type: "pink" },
-    82: { decay: 0.08, highpass: 5000, type: "white" }
-};
 const BANK1_DRUM_SLOTS = [
     { id: "pad_01", keys: ["w"], defaultSoundId: "gm_46_open_hi_hat" },
     { id: "pad_02", keys: ["s"], defaultSoundId: "gm_42_closed_hi_hat" },
@@ -243,6 +213,78 @@ const BANK1_DRUM_KEY_BINDINGS = Object.fromEntries(
 const DEFAULT_BANK1_DRUM_ASSIGNMENTS = Object.fromEntries(
     BANK1_DRUM_SLOTS.map(slot => [slot.id, slot.defaultSoundId])
 );
+const DEFAULT_DRUM_SAMPLE_PACK_ID = "salamander";
+const SAMPLE_PACKS = {
+    salamander: {
+        id: "salamander",
+        name: "Salamander Drumkit",
+        samples: {
+            kick: { url: "samples/salamander/kick.wav", gain: 1 },
+            snare: { url: "samples/salamander/snare.wav", gain: 0.85 },
+            crossStick: { url: "samples/salamander/cross-stick.wav", gain: 0.8 },
+            closedHat: { url: "samples/salamander/hihat-closed.wav", gain: 0.8 },
+            openHat: { url: "samples/salamander/hihat-open.wav", gain: 0.8 },
+            pedalHat: { url: "samples/salamander/hihat-foot.wav", gain: 0.8 },
+            ride: { url: "samples/salamander/ride.wav", gain: 0.85 },
+            crash: { url: "samples/salamander/crash.wav", gain: 0.85 },
+            tomHigh: { url: "samples/salamander/tom-high.wav", gain: 0.85 },
+            tomLow: { url: "samples/salamander/tom-low.wav", gain: 0.85 },
+            tomFloor: { url: "samples/salamander/tom-floor.wav", gain: 0.85 }
+        },
+        soundMap: {
+            35: { sampleId: "kick", pitchSemitones: -1 },
+            36: { sampleId: "kick" },
+            37: { sampleId: "crossStick" },
+            38: { sampleId: "snare" },
+            39: { sampleId: "snare" },
+            40: { sampleId: "snare", pitchSemitones: 2 },
+            41: { sampleId: "tomFloor" },
+            42: { sampleId: "closedHat" },
+            43: { sampleId: "tomFloor", pitchSemitones: 2 },
+            44: { sampleId: "pedalHat" },
+            45: { sampleId: "tomLow" },
+            46: { sampleId: "openHat" },
+            47: { sampleId: "tomLow", pitchSemitones: 2 },
+            48: { sampleId: "tomHigh", pitchSemitones: -2 },
+            49: { sampleId: "crash" },
+            50: { sampleId: "tomHigh" },
+            51: { sampleId: "ride" },
+            52: { sampleId: "crash", pitchSemitones: 3 },
+            53: { sampleId: "ride", pitchSemitones: 2 },
+            54: { sampleId: "pedalHat" },
+            55: { sampleId: "crash", pitchSemitones: 5 },
+            56: { sampleId: "pedalHat", pitchSemitones: -5 },
+            57: { sampleId: "crash", pitchSemitones: 2 },
+            58: { sampleId: "crossStick", pitchSemitones: -3 },
+            59: { sampleId: "ride", pitchSemitones: 7 },
+            60: { sampleId: "tomHigh", pitchSemitones: 5 },
+            61: { sampleId: "tomLow", pitchSemitones: 5 },
+            62: { sampleId: "tomLow", pitchSemitones: 7 },
+            63: { sampleId: "tomHigh", pitchSemitones: 7 },
+            64: { sampleId: "tomFloor", pitchSemitones: 7 },
+            65: { sampleId: "tomHigh", pitchSemitones: 12 },
+            66: { sampleId: "tomLow", pitchSemitones: 12 },
+            67: { sampleId: "pedalHat", pitchSemitones: 7 },
+            68: { sampleId: "pedalHat", pitchSemitones: 5 },
+            69: { sampleId: "closedHat", pitchSemitones: 5 },
+            70: { sampleId: "pedalHat", pitchSemitones: 3 },
+            71: { sampleId: "openHat", pitchSemitones: 12 },
+            72: { sampleId: "openHat", pitchSemitones: 7 },
+            73: { sampleId: "crossStick", pitchSemitones: 5 },
+            74: { sampleId: "crossStick", pitchSemitones: 2 },
+            75: { sampleId: "crossStick", pitchSemitones: 7 },
+            76: { sampleId: "crossStick", pitchSemitones: 12 },
+            77: { sampleId: "crossStick", pitchSemitones: 9 },
+            78: { sampleId: "tomLow", pitchSemitones: 2 },
+            79: { sampleId: "tomHigh", pitchSemitones: 2 },
+            80: { sampleId: "closedHat", pitchSemitones: 12 },
+            81: { sampleId: "ride", pitchSemitones: 12 },
+            82: { sampleId: "closedHat", pitchSemitones: 7 },
+            83: { sampleId: "pedalHat", pitchSemitones: 12 },
+            84: { sampleId: "crash", pitchSemitones: 12 }
+        }
+    }
+};
 const MASTER_MIN_DBFS = -60;
 const MASTER_MAX_DBFS = -6;
 const DEFAULT_MASTER_DBFS = -30;
@@ -318,7 +360,8 @@ let selectedCellMemoryId = cellMemories[0].id;
 let bank1 = { instrument: "sine", octave: 4, coupled: false };
 let bank23 = { instrument: "sine", octave: 3 };
 let bank1DrumKit = {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    samplePackId: DEFAULT_DRUM_SAMPLE_PACK_ID,
     assignments: { ...DEFAULT_BANK1_DRUM_ASSIGNMENTS }
 };
 let mixerState = createDefaultMixerState(tracks);
@@ -355,6 +398,9 @@ let masterOutputGain;
 const activeNotes = new Map();
 const activeNoiseVoices = new Map();
 const managedGeneratedVoices = new Map();
+const sampleBuffers = new Map();
+const sampleBufferPromises = new Map();
+const activeSampleSources = new Map();
 const activeKeyboardInputs = new Map();
 const activeRecordingNoteIds = new Map();
 
@@ -480,6 +526,7 @@ const playhead = (() => {
 })();
 
 async function buildSynth() {
+    disposeActiveSampleSources();
     disposeGeneratedVoices();
     pitchedSynths.forEach(instrumentSynth => {
         instrumentSynth.releaseAll();
@@ -625,7 +672,12 @@ function normalizeBank1DrumKit(savedDrumKit) {
         }
     });
 
-    return { schemaVersion: 1, assignments };
+    const savedSamplePackId = String(savedDrumKit?.samplePackId || "");
+    const samplePackId = Object.prototype.hasOwnProperty.call(SAMPLE_PACKS, savedSamplePackId)
+        ? savedSamplePackId
+        : DEFAULT_DRUM_SAMPLE_PACK_ID;
+
+    return { schemaVersion: 2, samplePackId, assignments };
 }
 
 function getPlayableNote(noteName, octave = bank1.octave) {
@@ -713,11 +765,7 @@ function updateBank1UI() {
 
     const formatBindings = (bindings, octave) => bindings
         .map(binding => {
-            const aliases = BANK23_KEY_ALIASES
-                .filter(alias => alias.bank === binding.bank && alias.note === binding.note)
-                .map(alias => alias.label.toUpperCase());
-            const labels = [binding.key.toUpperCase(), ...aliases].join("/");
-            return `${labels}=${getPlayableNote(binding.note, octave)}`;
+            return `${binding.key.toUpperCase()}=${getPlayableNote(binding.note, octave)}`;
         })
         .join("  ");
     const bank23BaseOctave = bank1.coupled ? bank1.octave + 1 : bank23.octave;
@@ -847,9 +895,28 @@ function finishInstrumentEdit() {
 }
 
 startBtn.addEventListener("click", async () => {
-    await Tone.start();
-    await buildSynth();
-    console.log("Tone started");
+    startBtn.disabled = true;
+    if (audioStatus) audioStatus.textContent = "Starting audio and loading drum samples...";
+    try {
+        await Tone.start();
+        await buildSynth();
+        const pack = SAMPLE_PACKS[bank1DrumKit.samplePackId];
+        if (!pack) {
+            throw new RangeError(`Unsupported drum sample pack: ${bank1DrumKit.samplePackId}`);
+        }
+        validateDrumSamplePack(pack);
+        await loadSamplePack(pack.id);
+        if (audioStatus) {
+            audioStatus.textContent = `Audio ready. ${pack.name} samples loaded.`;
+        }
+        console.log("Tone started");
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (audioStatus) audioStatus.textContent = `Audio startup failed: ${message}`;
+        console.error("Audio startup failed", error);
+    } finally {
+        startBtn.disabled = false;
+    }
 });
 
 bank1InstrumentSelect?.addEventListener("change", () => {
@@ -2011,6 +2078,110 @@ function disposeGeneratedVoices() {
     managedGeneratedVoices.clear();
 }
 
+function disposeActiveSampleSources() {
+    activeSampleSources.forEach((gainNode, source) => {
+        source.onended = null;
+        source.stop();
+        source.disconnect();
+        gainNode.disconnect();
+    });
+    activeSampleSources.clear();
+}
+
+function getSampleBuffer(url) {
+    if (sampleBuffers.has(url)) {
+        return Promise.resolve(sampleBuffers.get(url));
+    }
+
+    if (!sampleBufferPromises.has(url)) {
+        const request = fetch(url).then(response => {
+            if (!response.ok) {
+                throw new Error(`Could not load audio sample "${url}" (${response.status}).`);
+            }
+            return response.arrayBuffer();
+        }).then(data => Tone.getContext().rawContext.decodeAudioData(data));
+        sampleBufferPromises.set(url, request);
+        request.then(buffer => {
+            sampleBuffers.set(url, buffer);
+            sampleBufferPromises.delete(url);
+        }, () => {
+            sampleBufferPromises.delete(url);
+        });
+    }
+
+    return sampleBufferPromises.get(url);
+}
+
+async function loadSamplePack(packId) {
+    const pack = SAMPLE_PACKS[packId];
+    if (!pack) {
+        throw new RangeError(`Unsupported audio sample pack: ${packId}`);
+    }
+
+    const sampleIds = new Set(
+        Object.values(pack.soundMap).map(mapping => mapping.sampleId)
+    );
+    const sampleUrls = [...sampleIds].map(sampleId => {
+        const sample = pack.samples[sampleId];
+        if (!sample) {
+            throw new Error(`Drum sample pack "${packId}" references missing sample "${sampleId}".`);
+        }
+        return sample.url;
+    });
+    await Promise.all(sampleUrls.map(getSampleBuffer));
+    return pack;
+}
+
+function validateDrumSamplePack(pack) {
+    const unmappedSounds = BANK1_DRUM_SOUNDS.filter(sound => !pack.soundMap[sound.midiNote]);
+    if (unmappedSounds.length > 0) {
+        throw new Error(
+            `Audio sample pack "${pack.id}" does not map: ${unmappedSounds.map(sound => sound.label).join(", ")}.`
+        );
+    }
+}
+
+function playSampleVoice(pack, mapping, velocity) {
+    if (!mapping) {
+        throw new Error(`Audio sample pack "${pack.id}" has no mapping for this voice.`);
+    }
+    const sample = pack.samples[mapping.sampleId];
+    if (!sample) {
+        throw new Error(`Audio sample pack "${pack.id}" references missing sample "${mapping.sampleId}".`);
+    }
+    const buffer = sampleBuffers.get(sample.url);
+    if (!buffer) return false;
+
+    const normalizedVelocity = Number(velocity);
+    if (!Number.isFinite(normalizedVelocity) || normalizedVelocity < 0 || normalizedVelocity > 1) {
+        throw new RangeError("Sample voice velocity must be between 0 and 1.");
+    }
+    const sampleGain = Number(sample.gain ?? 1);
+    const pitchSemitones = Number(mapping.pitchSemitones ?? 0);
+    if (!Number.isFinite(sampleGain) || sampleGain < 0 || sampleGain > 1) {
+        throw new RangeError(`Sample "${mapping.sampleId}" gain must be between 0 and 1.`);
+    }
+    if (!Number.isFinite(pitchSemitones) || Math.abs(pitchSemitones) > 24) {
+        throw new RangeError(`Sample "${mapping.sampleId}" pitch shift must be between -24 and 24 semitones.`);
+    }
+    const context = Tone.getContext().rawContext;
+    const source = context.createBufferSource();
+    const outputGain = context.createGain();
+    source.buffer = buffer;
+    source.playbackRate.value = Math.pow(2, pitchSemitones / 12);
+    outputGain.gain.value = normalizedVelocity * sampleGain;
+    source.connect(outputGain);
+    outputGain.connect(primaryTrackGain.input);
+    activeSampleSources.set(source, outputGain);
+    source.addEventListener("ended", () => {
+        activeSampleSources.delete(source);
+        source.disconnect();
+        outputGain.disconnect();
+    }, { once: true });
+    source.start();
+    return true;
+}
+
 function getEnvelopeSettings(settings = instrumentSettings) {
     return {
         attack: settings.attack,
@@ -2073,85 +2244,12 @@ function triggerDrumPad(padId, velocity = 1) {
     const soundId = bank1DrumKit.assignments[padId];
     const sound = BANK1_DRUM_SOUNDS.find(candidate => candidate.id === soundId);
     if (!sound) return false;
-
-    const noteName = Tone.Frequency(sound.midiNote, "midi").toNote();
-    let voice;
-    const envelope = { attack: 0.001, decay: 0.25, sustain: 0, release: 0.08 };
-
-    if (sound.family === "membrane") {
-        voice = new Tone.MembraneSynth({
-            pitchDecay: 0.04,
-            octaves: 3,
-            envelope: { ...envelope, decay: 0.35 }
-        });
-        voice.connect(primaryTrackGain);
-        voice.triggerAttackRelease(noteName, 0.35, undefined, velocity);
-    } else if (sound.family === "metal") {
-        const profile = BANK1_METAL_DRUM_PROFILES[sound.midiNote];
-        const duration = profile?.decay || 0.35;
-        voice = new Tone.MetalSynth({
-            envelope: { ...envelope, decay: duration },
-            harmonicity: profile?.harmonicity || 5.1,
-            modulationIndex: profile?.modulationIndex || 32,
-            resonance: profile?.resonance || 4000,
-            octaves: profile?.octaves || 1.5
-        });
-        voice.connect(primaryTrackGain);
-        voice.triggerAttackRelease(noteName, duration, Tone.now(), velocity);
-    } else if (sound.family === "tone") {
-        voice = new Tone.Synth({
-            oscillator: { type: "square" },
-            envelope: { ...envelope, decay: 0.12 }
-        });
-        voice.connect(primaryTrackGain);
-        voice.triggerAttackRelease(noteName, 0.12, undefined, velocity);
-    } else {
-        const profile = BANK1_NOISE_DRUM_PROFILES[sound.midiNote]
-            || { decay: 0.12, highpass: 1400, type: "white" };
-        const filter = new Tone.Filter(profile.highpass, "highpass");
-        voice = new Tone.NoiseSynth({
-            noise: { type: profile.type },
-            envelope: { ...envelope, decay: profile.decay, release: 0.03 }
-        });
-        voice.connect(filter);
-        filter.connect(primaryTrackGain);
-        voice.triggerAttackRelease(profile.decay, Tone.now(), velocity);
-        scheduleGeneratedVoiceDisposal(filter, profile.decay * 1000 + 200);
-
-        if (sound.midiNote === 38 || sound.midiNote === 40) {
-            const body = new Tone.MembraneSynth({
-                pitchDecay: 0.01,
-                octaves: 1.4,
-                envelope: { ...envelope, decay: 0.12 }
-            });
-            body.connect(primaryTrackGain);
-            body.triggerAttackRelease(
-                sound.midiNote === 38 ? "D3" : "A3",
-                0.12,
-                Tone.now(),
-                velocity * 0.45
-            );
-            scheduleGeneratedVoiceDisposal(body, 700);
-        } else if (sound.midiNote === 37) {
-            const click = new Tone.Synth({
-                oscillator: { type: "square" },
-                envelope: { attack: 0.001, decay: 0.025, sustain: 0, release: 0.01 }
-            });
-            click.connect(primaryTrackGain);
-            click.triggerAttackRelease("A5", 0.025, Tone.now(), velocity * 0.35);
-            scheduleGeneratedVoiceDisposal(click, 300);
-        }
+    const pack = SAMPLE_PACKS[bank1DrumKit.samplePackId];
+    if (!pack) {
+        throw new Error(`Drum sample pack "${bank1DrumKit.samplePackId}" is unavailable.`);
     }
 
-    scheduleGeneratedVoiceDisposal(
-        voice,
-        sound.family === "metal"
-            ? 1800
-            : sound.family === "noise"
-                ? 800
-                : 700
-    );
-    return true;
+    return playSampleVoice(pack, pack.soundMap[sound.midiNote], velocity);
 }
 
 function getRecordingTick() {
@@ -2373,8 +2471,7 @@ function resolvePerformanceInput(code) {
     }
 
     if (bank1.instrument === "drumkit") return null;
-    const bank23Binding = BANK23_NOTE_BINDINGS.find(binding => binding.code === code)
-        || BANK23_KEY_ALIASES.find(binding => binding.code === code);
+    const bank23Binding = BANK23_NOTE_BINDINGS.find(binding => binding.code === code);
     if (!bank23Binding) return null;
 
     const octave = bank1.coupled
