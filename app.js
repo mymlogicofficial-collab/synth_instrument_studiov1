@@ -193,6 +193,36 @@ const BANK1_DRUM_SOUNDS = [
     { id: "gm_83_jingle_bell", label: "Jingle Bell", midiNote: 83, family: "metal" },
     { id: "gm_84_bell_tree", label: "Bell Tree", midiNote: 84, family: "metal" }
 ];
+const BANK1_METAL_DRUM_PROFILES = {
+    42: { decay: 0.07, resonance: 6900, octaves: 1.1, harmonicity: 5.8, modulationIndex: 24 },
+    44: { decay: 0.05, resonance: 7000, octaves: 0.9, harmonicity: 6.2, modulationIndex: 20 },
+    46: { decay: 0.5, resonance: 5600, octaves: 1.7, harmonicity: 5.4, modulationIndex: 34 },
+    49: { decay: 1.15, resonance: 3000, octaves: 2.4, harmonicity: 5.8, modulationIndex: 42 },
+    51: { decay: 0.72, resonance: 4200, octaves: 1.9, harmonicity: 5.2, modulationIndex: 32 },
+    52: { decay: 0.95, resonance: 2600, octaves: 2.7, harmonicity: 6.4, modulationIndex: 48 },
+    53: { decay: 0.2, resonance: 1700, octaves: 1, harmonicity: 4.2, modulationIndex: 18 },
+    54: { decay: 0.24, resonance: 4300, octaves: 1.2, harmonicity: 5.5, modulationIndex: 26 },
+    55: { decay: 0.46, resonance: 5000, octaves: 1.6, harmonicity: 5.8, modulationIndex: 34 },
+    56: { decay: 0.2, resonance: 900, octaves: 0.8, harmonicity: 3.8, modulationIndex: 14 },
+    57: { decay: 1.25, resonance: 2800, octaves: 2.5, harmonicity: 6.1, modulationIndex: 46 },
+    59: { decay: 0.76, resonance: 4000, octaves: 1.8, harmonicity: 5.3, modulationIndex: 32 },
+    80: { decay: 0.09, resonance: 5600, octaves: 0.8, harmonicity: 6.5, modulationIndex: 24 },
+    81: { decay: 0.55, resonance: 3900, octaves: 1.7, harmonicity: 6.1, modulationIndex: 32 },
+    83: { decay: 0.32, resonance: 3400, octaves: 1.4, harmonicity: 5.7, modulationIndex: 28 },
+    84: { decay: 0.68, resonance: 3200, octaves: 1.8, harmonicity: 5.9, modulationIndex: 36 }
+};
+const BANK1_NOISE_DRUM_PROFILES = {
+    37: { decay: 0.045, highpass: 2400, type: "white" },
+    38: { decay: 0.16, highpass: 900, type: "white" },
+    39: { decay: 0.22, highpass: 550, type: "pink" },
+    40: { decay: 0.11, highpass: 1700, type: "white" },
+    58: { decay: 0.42, highpass: 1300, type: "pink" },
+    69: { decay: 0.14, highpass: 4500, type: "white" },
+    70: { decay: 0.09, highpass: 3300, type: "pink" },
+    73: { decay: 0.2, highpass: 1400, type: "pink" },
+    74: { decay: 0.44, highpass: 1000, type: "pink" },
+    82: { decay: 0.08, highpass: 5000, type: "white" }
+};
 const BANK1_DRUM_SLOTS = [
     { id: "pad_01", keys: ["w"], defaultSoundId: "gm_46_open_hi_hat" },
     { id: "pad_02", keys: ["s"], defaultSoundId: "gm_42_closed_hi_hat" },
@@ -2044,7 +2074,6 @@ function triggerDrumPad(padId, velocity = 1) {
     const sound = BANK1_DRUM_SOUNDS.find(candidate => candidate.id === soundId);
     if (!sound) return false;
 
-    const frequency = Tone.Frequency(sound.midiNote, "midi").toFrequency();
     const noteName = Tone.Frequency(sound.midiNote, "midi").toNote();
     let voice;
     const envelope = { attack: 0.001, decay: 0.25, sustain: 0, release: 0.08 };
@@ -2058,17 +2087,17 @@ function triggerDrumPad(padId, velocity = 1) {
         voice.connect(primaryTrackGain);
         voice.triggerAttackRelease(noteName, 0.35, undefined, velocity);
     } else if (sound.family === "metal") {
+        const profile = BANK1_METAL_DRUM_PROFILES[sound.midiNote];
+        const duration = profile?.decay || 0.35;
         voice = new Tone.MetalSynth({
-            frequency: Math.max(200, frequency),
-            envelope: { ...envelope, decay: 0.5 },
-            harmonicity: 5.1,
-            modulationIndex: 32,
-            resonance: 4000,
-            octaves: 1.5
+            envelope: { ...envelope, decay: duration },
+            harmonicity: profile?.harmonicity || 5.1,
+            modulationIndex: profile?.modulationIndex || 32,
+            resonance: profile?.resonance || 4000,
+            octaves: profile?.octaves || 1.5
         });
         voice.connect(primaryTrackGain);
-        const duration = [46, 49, 51, 52, 55, 57, 59, 81, 84].includes(sound.midiNote) ? 1.2 : 0.35;
-        voice.triggerAttackRelease(duration, undefined, velocity);
+        voice.triggerAttackRelease(noteName, duration, Tone.now(), velocity);
     } else if (sound.family === "tone") {
         voice = new Tone.Synth({
             oscillator: { type: "square" },
@@ -2077,15 +2106,51 @@ function triggerDrumPad(padId, velocity = 1) {
         voice.connect(primaryTrackGain);
         voice.triggerAttackRelease(noteName, 0.12, undefined, velocity);
     } else {
+        const profile = BANK1_NOISE_DRUM_PROFILES[sound.midiNote]
+            || { decay: 0.12, highpass: 1400, type: "white" };
+        const filter = new Tone.Filter(profile.highpass, "highpass");
         voice = new Tone.NoiseSynth({
-            noise: { type: "white" },
-            envelope: { ...envelope, decay: 0.12 }
+            noise: { type: profile.type },
+            envelope: { ...envelope, decay: profile.decay, release: 0.03 }
         });
-        voice.connect(primaryTrackGain);
-        voice.triggerAttackRelease(0.14, undefined, velocity);
+        voice.connect(filter);
+        filter.connect(primaryTrackGain);
+        voice.triggerAttackRelease(profile.decay, Tone.now(), velocity);
+        scheduleGeneratedVoiceDisposal(filter, profile.decay * 1000 + 200);
+
+        if (sound.midiNote === 38 || sound.midiNote === 40) {
+            const body = new Tone.MembraneSynth({
+                pitchDecay: 0.01,
+                octaves: 1.4,
+                envelope: { ...envelope, decay: 0.12 }
+            });
+            body.connect(primaryTrackGain);
+            body.triggerAttackRelease(
+                sound.midiNote === 38 ? "D3" : "A3",
+                0.12,
+                Tone.now(),
+                velocity * 0.45
+            );
+            scheduleGeneratedVoiceDisposal(body, 700);
+        } else if (sound.midiNote === 37) {
+            const click = new Tone.Synth({
+                oscillator: { type: "square" },
+                envelope: { attack: 0.001, decay: 0.025, sustain: 0, release: 0.01 }
+            });
+            click.connect(primaryTrackGain);
+            click.triggerAttackRelease("A5", 0.025, Tone.now(), velocity * 0.35);
+            scheduleGeneratedVoiceDisposal(click, 300);
+        }
     }
 
-    scheduleGeneratedVoiceDisposal(voice, sound.family === "metal" ? 1800 : 700);
+    scheduleGeneratedVoiceDisposal(
+        voice,
+        sound.family === "metal"
+            ? 1800
+            : sound.family === "noise"
+                ? 800
+                : 700
+    );
     return true;
 }
 
