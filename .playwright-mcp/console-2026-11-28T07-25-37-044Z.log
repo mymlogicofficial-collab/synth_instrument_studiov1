@@ -1,0 +1,10 @@
+[    1039ms] [LOG] %c * Tone.js v15.1.22 *  background: #000; color: #fff @ https://unpkg.com/tone:2
+[    1087ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://unpkg.com/tone:2
+[    1089ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://unpkg.com/tone:2
+[   68946ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://127.0.0.1:8765/samples/freepats-bass/finger/F#.flac:1
+[   68947ms] [ERROR] Audio initialization failed Error: Could not load audio sample "samples/freepats-bass/finger/F#.flac" (404).
+    at http://127.0.0.1:8765/app.js:2173:23 @ http://127.0.0.1:8765/app.js:623
+[   69040ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://127.0.0.1:8765/samples/freepats-bass/finger/G#.flac:1
+[   69083ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://127.0.0.1:8765/samples/freepats-bass/finger/A#.flac:1
+[   69187ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://127.0.0.1:8765/samples/freepats-bass/finger/C#.flac:1
+[   69215ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://127.0.0.1:8765/samples/freepats-bass/finger/D#.flac:1

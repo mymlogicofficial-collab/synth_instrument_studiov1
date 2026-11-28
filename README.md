@@ -21,8 +21,10 @@ A lightweight, creation-first instrument studio focused on rapid music prototypi
 - Polyphonic synth engine
 - Waveform selection
 - ADSR envelope controls
-- Duration control
+- Minimum note duration control for short taps; held notes preserve their actual lengths
+- Sampled fingerstyle bass and clean electric guitar
 - Bank 1 drums use a reusable, sample-pack-based playback engine
+- Audio starts from the first record, play, or instrument-input gesture
 
 ### Input
 - Keyboard input
@@ -145,6 +147,17 @@ Alexander, obtained from the [Internet Archive Salamander Drumkit collection](ht
 They are redistributed under the [Creative Commons Attribution-ShareAlike 3.0 license](https://creativecommons.org/licenses/by-sa/3.0/).
 The floor-tom sample is a low-tom variation because the source kit does not
 provide a separately labelled floor-tom sample.
+
+## Melodic Sample Attribution
+
+The fingerstyle bass samples in `samples/freepats-bass/` are by Andrea Biasior
+from the [FreePats electric-bass-YR collection](https://github.com/freepats/electric-bass-YR),
+released under [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
+
+The clean electric guitar samples in `samples/emilyguitar/` are from D. Smolken's
+Emily guitar instrument in the
+[Karoryfer SFZ Instruments collection](https://github.com/sfzinstruments/karoryfer.emilyguitar),
+released under [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
 
 ---
 

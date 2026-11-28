@@ -13,7 +13,6 @@ const releaseValue = document.getElementById("releaseValue");
 const durationSlider = document.getElementById("duration");
 const durationValue = document.getElementById("durationValue");
 
-const startBtn = document.getElementById("startBtn");
 const audioStatus = document.getElementById("audioStatus");
 const bank1InstrumentSelect = document.getElementById("bank1Instrument");
 const bank1OctaveDownBtn = document.getElementById("bank1OctaveDown");
@@ -68,6 +67,7 @@ const SIS_TICKS_PER_QUARTER = 960;
 const DEFAULT_TEMPO_BPM = 120;
 const DEFAULT_BEATS_PER_BAR = 4;
 const DEFAULT_BEAT_UNIT = 4;
+const DEFAULT_NOTE_GATE_SECONDS = 0.18;
 const DEFAULT_TRACK_ID = "track_1";
 const DEFAULT_TRACK_NAME = "Lead";
 const BANK1_MIN_OCTAVE = 1;
@@ -127,6 +127,8 @@ const BANK1_INSTRUMENTS = [
     { id: "saw", label: "Saw" },
     { id: "triangle", label: "Triangle" },
     { id: "noise", label: "Noise" },
+    { id: "bass", label: "Fingerstyle Bass" },
+    { id: "guitar", label: "Clean Electric Guitar" },
     { id: "drumkit", label: "Drum Kit" }
 ];
 const BANK1_WAVEFORM_BY_INSTRUMENT = {
@@ -285,6 +287,47 @@ const SAMPLE_PACKS = {
         }
     }
 };
+const MELODIC_SAMPLE_INSTRUMENTS = {
+    bass: {
+        id: "bass",
+        name: "Fingerstyle Electric Bass",
+        zones: [
+            { rootMidi: 28, samples: ["samples/freepats-bass/finger/E.flac"] },
+            { rootMidi: 29, samples: ["samples/freepats-bass/finger/F.flac"] },
+            { rootMidi: 30, samples: ["samples/freepats-bass/finger/F%23.flac"] },
+            { rootMidi: 31, samples: ["samples/freepats-bass/finger/G.flac"] },
+            { rootMidi: 32, samples: ["samples/freepats-bass/finger/G%23.flac"] },
+            { rootMidi: 33, samples: ["samples/freepats-bass/finger/A.flac"] },
+            { rootMidi: 34, samples: ["samples/freepats-bass/finger/A%23.flac"] },
+            { rootMidi: 35, samples: ["samples/freepats-bass/finger/B.flac"] },
+            { rootMidi: 36, samples: ["samples/freepats-bass/finger/C.flac"] },
+            { rootMidi: 37, samples: ["samples/freepats-bass/finger/C%23.flac"] },
+            { rootMidi: 38, samples: ["samples/freepats-bass/finger/D.flac"] },
+            { rootMidi: 39, samples: ["samples/freepats-bass/finger/D%23.flac"] }
+        ]
+    },
+    guitar: {
+        id: "guitar",
+        name: "Clean Electric Guitar",
+        zones: [
+            { rootMidi: 37, samples: [1, 2, 3].map(round => `samples/emilyguitar/notes/db2_mf_rr${round}.wav`) },
+            { rootMidi: 40, samples: [1, 2, 3].map(round => `samples/emilyguitar/notes/e2_mf_rr${round}.wav`) },
+            { rootMidi: 42, samples: [1, 2, 3].map(round => `samples/emilyguitar/notes/gb2_mf_rr${round}.wav`) },
+            { rootMidi: 45, samples: [1, 2, 3].map(round => `samples/emilyguitar/notes/a2_mf_rr${round}.wav`) },
+            { rootMidi: 48, samples: [1, 2, 3].map(round => `samples/emilyguitar/notes/c3_mf_rr${round}.wav`) },
+            { rootMidi: 51, samples: [1, 2, 3].map(round => `samples/emilyguitar/notes/eb3_mf_rr${round}.wav`) },
+            { rootMidi: 54, samples: [1, 2, 3].map(round => `samples/emilyguitar/notes/gb3_mf_rr${round}.wav`) },
+            { rootMidi: 57, samples: [1, 2, 3].map(round => `samples/emilyguitar/notes/a3_mf_rr${round}.wav`) },
+            { rootMidi: 60, samples: [1, 2, 3].map(round => `samples/emilyguitar/notes/c4_mf_rr${round}.wav`) },
+            { rootMidi: 63, samples: [1, 2, 3].map(round => `samples/emilyguitar/notes/eb4_mf_rr${round}.wav`) },
+            { rootMidi: 66, samples: [1, 2, 3].map(round => `samples/emilyguitar/notes/gb4_mf_rr${round}.wav`) },
+            { rootMidi: 69, samples: [1, 2, 3].map(round => `samples/emilyguitar/notes/a4_mf_rr${round}.wav`) },
+            { rootMidi: 72, samples: [1, 2, 3].map(round => `samples/emilyguitar/notes/c5_mf_rr${round}.wav`) },
+            { rootMidi: 75, samples: [1, 2, 3].map(round => `samples/emilyguitar/notes/eb5_mf_rr${round}.wav`) },
+            { rootMidi: 78, samples: [1, 2, 3].map(round => `samples/emilyguitar/notes/gb5_mf_rr${round}.wav`) }
+        ]
+    }
+};
 const MASTER_MIN_DBFS = -60;
 const MASTER_MAX_DBFS = -6;
 const DEFAULT_MASTER_DBFS = -30;
@@ -380,7 +423,7 @@ let instrumentSettings = {
     decay: Number(decaySlider.value),
     sustain: Number(sustainSlider.value),
     release: Number(releaseSlider.value),
-    duration: durationSlider ? Number(durationSlider.value) : 1
+    duration: durationSlider ? Number(durationSlider.value) : DEFAULT_NOTE_GATE_SECONDS
 };
 let fxChains = [];
 let undoStack = [];
@@ -401,8 +444,14 @@ const managedGeneratedVoices = new Map();
 const sampleBuffers = new Map();
 const sampleBufferPromises = new Map();
 const activeSampleSources = new Map();
+const melodicSamplePromises = new Map();
+const melodicRoundRobinIndexes = new Map();
 const activeKeyboardInputs = new Map();
 const activeRecordingNoteIds = new Map();
+let synthBuildPromise = null;
+let audioStartPromise = null;
+let isPreparingPlayback = false;
+let playbackPreparationId = 0;
 
 const keyMap = {
     q: "C3",
@@ -557,6 +606,39 @@ async function buildSynth() {
     applyPrimaryTrackOutput();
 }
 
+function ensureSynthGraph() {
+    if (primaryTrackGain) return Promise.resolve();
+    if (!synthBuildPromise) {
+        synthBuildPromise = buildSynth().catch(error => {
+            synthBuildPromise = null;
+            throw error;
+        });
+    }
+    return synthBuildPromise;
+}
+
+function reportAudioFailure(error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (audioStatus) audioStatus.textContent = `Audio unavailable: ${message}`;
+    console.error("Audio initialization failed", error);
+}
+
+function ensureAudioStarted() {
+    if (audioStartPromise) return audioStartPromise;
+
+    const startRequest = Tone.start();
+    audioStartPromise = Promise.resolve(startRequest)
+        .then(() => ensureSynthGraph())
+        .then(() => {
+            if (audioStatus) audioStatus.textContent = "Audio ready.";
+        })
+        .catch(error => {
+            audioStartPromise = null;
+            throw error;
+        });
+    return audioStartPromise;
+}
+
 function updateEnvelope() {
     pitchedSynths.forEach(instrumentSynth => {
         instrumentSynth.set({
@@ -593,13 +675,15 @@ function syncInstrumentSettingsFromControls() {
         decay: Number(decaySlider.value),
         sustain: Number(sustainSlider.value),
         release: Number(releaseSlider.value),
-        duration: durationSlider ? Number(durationSlider.value) : 1
+        duration: durationSlider
+            ? Number(durationSlider.value)
+            : DEFAULT_NOTE_GATE_SECONDS
     };
 }
 
 function beginInstrumentEdit() {
     if (!pendingInstrumentTransaction) {
-        pendingInstrumentTransaction = beginCompositionTransaction();
+        pendingInstrumentTransaction = beginControllerTransaction();
     }
 }
 
@@ -614,7 +698,9 @@ function updateInstrumentControls() {
     decayValue.textContent = decaySlider.value;
     sustainValue.textContent = sustainSlider.value;
     releaseValue.textContent = releaseSlider.value;
-    if (durationValue) durationValue.textContent = durationSlider?.value || "1";
+    if (durationValue) {
+        durationValue.textContent = durationSlider?.value || String(DEFAULT_NOTE_GATE_SECONDS);
+    }
 }
 
 function normalizeBank1(savedBank1, legacyWaveform = "sine") {
@@ -782,8 +868,12 @@ function setBank1Instrument(instrumentId) {
     if (!instrument) throw new RangeError(`Unsupported Bank 1 instrument: ${instrumentId}`);
     if (bank1.instrument === instrument.id) return false;
 
-    const before = beginCompositionTransaction();
-    bank1 = { ...bank1, instrument: instrument.id };
+    const before = beginControllerTransaction();
+    bank1 = {
+        ...bank1,
+        instrument: instrument.id,
+        octave: instrument.id === "bass" ? 2 : bank1.octave
+    };
     if (BANK1_WAVEFORM_BY_INSTRUMENT[instrument.id]) {
         instrumentSettings.waveform = BANK1_WAVEFORM_BY_INSTRUMENT[instrument.id];
     }
@@ -791,6 +881,7 @@ function setBank1Instrument(instrumentId) {
     updateBank1UI();
     renderRibbon();
     recordCompositionTransaction("CHANGE_INSTRUMENT", "Change Bank 1 Instrument", before);
+    preloadInstrumentAssets(instrument.id);
     return true;
 }
 
@@ -801,7 +892,7 @@ function setBank1Octave(octave) {
     }
     if (bank1.octave === nextOctave) return false;
 
-    const before = beginCompositionTransaction();
+    const before = beginControllerTransaction();
     bank1 = { ...bank1, octave: nextOctave };
     updateBank1UI();
     renderRibbon();
@@ -816,11 +907,12 @@ function setBank23Instrument(instrumentId) {
     if (!instrument) throw new RangeError(`Unsupported Bank 2/3 instrument: ${instrumentId}`);
     if (bank23.instrument === instrument.id) return false;
 
-    const before = beginCompositionTransaction();
+    const before = beginControllerTransaction();
     bank23 = { ...bank23, instrument: instrument.id };
     updateBank1UI();
     renderRibbon();
     recordCompositionTransaction("CHANGE_INSTRUMENT", "Change Bank 2/3 Instrument", before);
+    preloadInstrumentAssets(instrument.id);
     return true;
 }
 
@@ -833,7 +925,7 @@ function setBank23Octave(octave) {
     }
     if (bank23.octave === nextOctave) return false;
 
-    const before = beginCompositionTransaction();
+    const before = beginControllerTransaction();
     bank23 = { ...bank23, octave: nextOctave };
     updateBank1UI();
     renderRibbon();
@@ -847,7 +939,7 @@ function setBanksCoupled(coupled) {
     }
     if (bank1.coupled === coupled) return false;
 
-    const before = beginCompositionTransaction();
+    const before = beginControllerTransaction();
     bank1 = { ...bank1, coupled };
     updateBank1UI();
     renderRibbon();
@@ -868,7 +960,7 @@ function setBank1DrumSound(slotId, soundId) {
     }
     if (bank1DrumKit.assignments[slotId] === soundId) return false;
 
-    const before = beginCompositionTransaction();
+    const before = beginControllerTransaction();
     bank1DrumKit = {
         ...bank1DrumKit,
         assignments: { ...bank1DrumKit.assignments, [slotId]: soundId }
@@ -881,7 +973,7 @@ function setBank1DrumSound(slotId, soundId) {
 
 function finishInstrumentEdit() {
     if (!pendingInstrumentTransaction) {
-        pendingInstrumentTransaction = beginCompositionTransaction();
+        pendingInstrumentTransaction = beginControllerTransaction();
     }
     syncInstrumentSettingsFromControls();
     updateEnvelope();
@@ -894,34 +986,8 @@ function finishInstrumentEdit() {
     pendingInstrumentTransaction = null;
 }
 
-startBtn.addEventListener("click", async () => {
-    startBtn.disabled = true;
-    if (audioStatus) audioStatus.textContent = "Starting audio and loading drum samples...";
-    try {
-        await Tone.start();
-        await buildSynth();
-        const pack = SAMPLE_PACKS[bank1DrumKit.samplePackId];
-        if (!pack) {
-            throw new RangeError(`Unsupported drum sample pack: ${bank1DrumKit.samplePackId}`);
-        }
-        validateDrumSamplePack(pack);
-        await loadSamplePack(pack.id);
-        if (audioStatus) {
-            audioStatus.textContent = `Audio ready. ${pack.name} samples loaded.`;
-        }
-        console.log("Tone started");
-    } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        if (audioStatus) audioStatus.textContent = `Audio startup failed: ${message}`;
-        console.error("Audio startup failed", error);
-    } finally {
-        startBtn.disabled = false;
-    }
-});
-
 bank1InstrumentSelect?.addEventListener("change", () => {
     setBank1Instrument(bank1InstrumentSelect.value);
-    bank1InstrumentSelect.blur();
 });
 
 bank1OctaveDownBtn?.addEventListener("click", () => setBank1Octave(bank1.octave - 1));
@@ -931,7 +997,6 @@ bankCoupleToggle?.addEventListener("change", () => {
 });
 bank23InstrumentSelect?.addEventListener("change", () => {
     setBank23Instrument(bank23InstrumentSelect.value);
-    bank23InstrumentSelect.blur();
 });
 bank23OctaveDownBtn?.addEventListener("click", () => setBank23Octave(bank23.octave - 1));
 bank23OctaveUpBtn?.addEventListener("click", () => setBank23Octave(bank23.octave + 1));
@@ -940,7 +1005,6 @@ bank1DrumSlots?.addEventListener("change", event => {
     const select = event.target.closest("select[data-drum-slot]");
     if (select) {
         setBank1DrumSound(select.dataset.drumSlot, select.value);
-        select.blur();
     }
 });
 
@@ -1616,6 +1680,11 @@ function beginCompositionTransaction() {
     return getCompositionSnapshot();
 }
 
+function beginControllerTransaction() {
+    if (pendingInstrumentTransaction) finishInstrumentEdit();
+    return getCompositionSnapshot();
+}
+
 function recordCompositionTransaction(type, label, before) {
     const after = getCompositionSnapshot();
     if (JSON.stringify(before) === JSON.stringify(after)) return false;
@@ -1651,8 +1720,13 @@ function restoreCompositionSnapshot(snapshot) {
     if (!cellMemories.some(cell => cell.id === selectedCellMemoryId)) {
         selectedCellMemoryId = cellMemories[0].id;
     }
-    timelineSelectionIds.clear();
-    timelineSelectionAnchorTick = null;
+    const restoredEventIds = new Set(recordingData.map(event => event.id));
+    timelineSelectionIds = new Set(
+        [...timelineSelectionIds].filter(id => restoredEventIds.has(id))
+    );
+    if (timelineSelectionAnchorTick !== null && timelineSelectionIds.size === 0) {
+        timelineSelectionAnchorTick = null;
+    }
     rebuildTrackEventRefs();
     updateInstrumentControls();
     applyInstrumentSettingsToSynth();
@@ -1928,7 +2002,7 @@ function setTrackSolo(trackId, solo) {
 }
 
 function createTrack(name) {
-    const before = beginCompositionTransaction();
+    const before = beginControllerTransaction();
     const usedNumbers = tracks
         .map(track => Number(track.id.match(/^track_(\d+)$/)?.[1]))
         .filter(Number.isInteger);
@@ -2132,6 +2206,67 @@ async function loadSamplePack(packId) {
     return pack;
 }
 
+async function loadMelodicSampleInstrument(instrumentId) {
+    const instrument = MELODIC_SAMPLE_INSTRUMENTS[instrumentId];
+    if (!instrument) {
+        throw new RangeError(`Unsupported melodic sample instrument: ${instrumentId}`);
+    }
+
+    if (!melodicSamplePromises.has(instrumentId)) {
+        const urls = [...new Set(instrument.zones.flatMap(zone => zone.samples))];
+        const request = Promise.all(urls.map(getSampleBuffer))
+            .then(() => instrument)
+            .catch(error => {
+                melodicSamplePromises.delete(instrumentId);
+                throw error;
+            });
+        melodicSamplePromises.set(instrumentId, request);
+    }
+    return melodicSamplePromises.get(instrumentId);
+}
+
+async function prepareInstrumentAssets(instrumentId) {
+    await ensureSynthGraph();
+    if (instrumentId === "drumkit") {
+        const pack = SAMPLE_PACKS[bank1DrumKit.samplePackId];
+        if (!pack) {
+            throw new RangeError(`Unsupported drum sample pack: ${bank1DrumKit.samplePackId}`);
+        }
+        validateDrumSamplePack(pack);
+        return loadSamplePack(pack.id);
+    }
+    if (MELODIC_SAMPLE_INSTRUMENTS[instrumentId]) {
+        return loadMelodicSampleInstrument(instrumentId);
+    }
+    return null;
+}
+
+async function preparePlaybackAssets(events) {
+    const instrumentIds = new Set(events.map(event => (
+        event.kind === "drum" ? "drumkit" : getTimelineEventInstrument(event)
+    )));
+    await Promise.all([...instrumentIds].map(prepareInstrumentAssets));
+}
+
+function preloadInstrumentAssets(instrumentId) {
+    if (!audioStatus) return;
+    const sampleInstrument = MELODIC_SAMPLE_INSTRUMENTS[instrumentId];
+    const label = sampleInstrument?.name || (
+        instrumentId === "drumkit"
+            ? SAMPLE_PACKS[bank1DrumKit.samplePackId]?.name
+            : null
+    );
+    if (!label) return;
+
+    audioStatus.textContent = `Loading ${label} samples...`;
+    prepareInstrumentAssets(instrumentId).then(() => {
+        const contextState = Tone.getContext().rawContext.state;
+        audioStatus.textContent = contextState === "running"
+            ? `${label} samples ready; audio ready.`
+            : `${label} samples ready; audio starts when you play.`;
+    }).catch(reportAudioFailure);
+}
+
 function validateDrumSamplePack(pack) {
     const unmappedSounds = BANK1_DRUM_SOUNDS.filter(sound => !pack.soundMap[sound.midiNote]);
     if (unmappedSounds.length > 0) {
@@ -2182,6 +2317,90 @@ function playSampleVoice(pack, mapping, velocity) {
     return true;
 }
 
+function midiNoteNumber(noteName) {
+    const match = /^([A-G]#?)(-?\d+)$/.exec(String(noteName));
+    if (!match) throw new TypeError(`Invalid note name: ${noteName}`);
+    const semitone = BANK1_PITCH_CLASSES.indexOf(match[1]);
+    if (semitone < 0) throw new TypeError(`Invalid note name: ${noteName}`);
+    return (Number(match[2]) + 1) * 12 + semitone;
+}
+
+function playMelodicSample(instrumentId, noteName, inputId, velocity, settings, startedAt) {
+    const instrument = MELODIC_SAMPLE_INSTRUMENTS[instrumentId];
+    if (!instrument) {
+        throw new RangeError(`Unsupported melodic sample instrument: ${instrumentId}`);
+    }
+    const targetMidi = midiNoteNumber(noteName);
+    const zone = instrument.zones.reduce((nearest, candidate) => (
+        Math.abs(candidate.rootMidi - targetMidi) < Math.abs(nearest.rootMidi - targetMidi)
+            ? candidate
+            : nearest
+    ), instrument.zones[0]);
+    const roundRobinKey = `${instrumentId}:${zone.rootMidi}`;
+    const roundRobinIndex = melodicRoundRobinIndexes.get(roundRobinKey) || 0;
+    const sampleUrl = zone.samples[roundRobinIndex % zone.samples.length];
+    melodicRoundRobinIndexes.set(roundRobinKey, roundRobinIndex + 1);
+    const buffer = sampleBuffers.get(sampleUrl);
+    if (!buffer) return false;
+
+    const normalizedVelocity = Number(velocity);
+    if (!Number.isFinite(normalizedVelocity) || normalizedVelocity < 0 || normalizedVelocity > 1) {
+        throw new RangeError("Sample voice velocity must be between 0 and 1.");
+    }
+    const context = Tone.getContext().rawContext;
+    const source = context.createBufferSource();
+    const outputGain = context.createGain();
+    const peakGain = normalizedVelocity * 0.8;
+    const attack = Math.max(0, Number(settings.attack) || 0);
+    const decay = Math.max(0, Number(settings.decay) || 0);
+    const sustain = Math.min(1, Math.max(0, Number(settings.sustain)));
+    const startTime = context.currentTime;
+    const attackEnd = startTime + attack;
+    const decayEnd = attackEnd + decay;
+
+    source.buffer = buffer;
+    source.playbackRate.value = Math.pow(2, (targetMidi - zone.rootMidi) / 12);
+    outputGain.gain.setValueAtTime(0, startTime);
+    if (attack > 0) {
+        outputGain.gain.linearRampToValueAtTime(peakGain, attackEnd);
+    } else {
+        outputGain.gain.setValueAtTime(peakGain, startTime);
+    }
+    if (decay > 0) {
+        outputGain.gain.linearRampToValueAtTime(peakGain * sustain, decayEnd);
+    } else {
+        outputGain.gain.setValueAtTime(peakGain * sustain, attackEnd);
+    }
+
+    source.connect(outputGain);
+    outputGain.connect(primaryTrackGain.input);
+    activeSampleSources.set(source, outputGain);
+    const activeNote = {
+        note: noteName,
+        instrumentId,
+        source,
+        outputGain,
+        sampleEnded: false,
+        startedAt,
+        contextStartedAt: startTime,
+        peakGain,
+        attack,
+        decay,
+        sustain,
+        release: settings.release,
+        minimumGateAt: startedAt + Math.max(0, Number(settings.duration) || 0) * 1000
+    };
+    activeNotes.set(inputId, activeNote);
+    source.addEventListener("ended", () => {
+        activeSampleSources.delete(source);
+        activeNote.sampleEnded = true;
+        source.disconnect();
+        outputGain.disconnect();
+    }, { once: true });
+    source.start();
+    return true;
+}
+
 function getEnvelopeSettings(settings = instrumentSettings) {
     return {
         attack: settings.attack,
@@ -2191,8 +2410,19 @@ function getEnvelopeSettings(settings = instrumentSettings) {
     };
 }
 
-function startAudioNote(note, instrumentId, inputId, velocity = 1, settings = instrumentSettings) {
+function startAudioNote(
+    note,
+    instrumentId,
+    inputId,
+    velocity = 1,
+    settings = instrumentSettings,
+    startedAt = performance.now()
+) {
     if (!primaryTrackGain || activeNotes.has(inputId)) return false;
+
+    if (MELODIC_SAMPLE_INSTRUMENTS[instrumentId]) {
+        return playMelodicSample(instrumentId, note, inputId, velocity, settings, startedAt);
+    }
 
     if (instrumentId === "noise") {
         const voice = new Tone.NoiseSynth({
@@ -2201,7 +2431,14 @@ function startAudioNote(note, instrumentId, inputId, velocity = 1, settings = in
         }).connect(primaryTrackGain);
         voice.triggerAttack(undefined, velocity);
         activeNoiseVoices.set(inputId, voice);
-        activeNotes.set(inputId, { note, instrumentId, voice, release: settings.release });
+        activeNotes.set(inputId, {
+            note,
+            instrumentId,
+            voice,
+            release: settings.release,
+            startedAt,
+            minimumGateAt: startedAt + Math.max(0, Number(settings.duration) || 0) * 1000
+        });
         return true;
     }
 
@@ -2216,7 +2453,9 @@ function startAudioNote(note, instrumentId, inputId, velocity = 1, settings = in
         note,
         instrumentId,
         synth: instrumentSynth,
-        release: settings.release
+        release: settings.release,
+        startedAt,
+        minimumGateAt: startedAt + Math.max(0, Number(settings.duration) || 0) * 1000
     });
     return true;
 }
@@ -2225,6 +2464,7 @@ function releaseAudioNote(inputId, release) {
     const activeNote = activeNotes.get(inputId);
     if (!activeNote) return false;
     activeNotes.delete(inputId);
+    if (activeNote.releaseTimer) clearTimeout(activeNote.releaseTimer);
 
     if (activeNote.voice) {
         activeNoiseVoices.delete(inputId);
@@ -2233,6 +2473,28 @@ function releaseAudioNote(inputId, release) {
             ? Number(release)
             : Number(activeNote.release || instrumentSettings.release);
         scheduleGeneratedVoiceDisposal(activeNote.voice, Math.max(100, releaseTime * 1000 + 100));
+    } else if (activeNote.outputGain) {
+        if (!activeNote.sampleEnded) {
+            const context = Tone.getContext().rawContext;
+            const now = context.currentTime;
+            const elapsed = Math.max(0, now - activeNote.contextStartedAt);
+            let currentGain = activeNote.peakGain * activeNote.sustain;
+            if (activeNote.attack > 0 && elapsed < activeNote.attack) {
+                currentGain = activeNote.peakGain * elapsed / activeNote.attack;
+            } else if (activeNote.decay > 0 && elapsed < activeNote.attack + activeNote.decay) {
+                const decayProgress = (elapsed - activeNote.attack) / activeNote.decay;
+                currentGain = activeNote.peakGain
+                    * (1 - (1 - activeNote.sustain) * decayProgress);
+            }
+            const releaseTime = Number.isFinite(Number(release))
+                ? Math.max(0, Number(release))
+                : Math.max(0, Number(activeNote.release) || 0);
+            const gain = activeNote.outputGain.gain;
+            gain.cancelScheduledValues(now);
+            gain.setValueAtTime(currentGain, now);
+            gain.linearRampToValueAtTime(0, now + releaseTime);
+            activeNote.source.stop(now + releaseTime + 0.01);
+        }
     } else {
         activeNote.synth.triggerRelease(activeNote.note);
     }
@@ -2252,29 +2514,37 @@ function triggerDrumPad(padId, velocity = 1) {
     return playSampleVoice(pack, pack.soundMap[sound.midiNote], velocity);
 }
 
-function getRecordingTick() {
-    const elapsed = performance.now() - recordingStart;
+function getRecordingTick(timestamp = performance.now()) {
+    const elapsed = timestamp - recordingStart;
     return recordingStartTick
         + Math.round((elapsed * tempoBpm * SIS_TICKS_PER_QUARTER) / 60000);
 }
 
-function recordEvent(type, note, instrumentId = bank1.instrument, inputId = note) {
+function recordEvent(
+    type,
+    note,
+    instrumentId = bank1.instrument,
+    inputId = note,
+    timestamp = performance.now(),
+    settings = instrumentSettings
+) {
     if (!isRecording) return;
 
     if (type === "noteOn") {
         activeRecordingNoteIds.set(inputId, {
             id: crypto.randomUUID(),
             trackId: DEFAULT_TRACK_ID,
-            startTick: getRecordingTick(),
+            startTick: getRecordingTick(timestamp),
             note,
             kind: "note",
             instrumentId,
             velocity: 1,
             waveform: BANK1_WAVEFORM_BY_INSTRUMENT[instrumentId] || instrumentSettings.waveform,
-            attack: instrumentSettings.attack,
-            decay: instrumentSettings.decay,
-            sustain: instrumentSettings.sustain,
-            release: instrumentSettings.release
+            attack: settings.attack,
+            decay: settings.decay,
+            sustain: settings.sustain,
+            release: settings.release,
+            minimumGateAt: timestamp + Math.max(0, Number(settings.duration) || 0) * 1000
         });
         return;
     }
@@ -2283,7 +2553,7 @@ function recordEvent(type, note, instrumentId = bank1.instrument, inputId = note
         const startedNote = activeRecordingNoteIds.get(inputId);
         if (!startedNote) return;
         activeRecordingNoteIds.delete(inputId);
-        const endTick = getRecordingTick();
+        const endTick = getRecordingTick(Math.max(timestamp, startedNote.minimumGateAt));
         recordingData.push(makeTimelineEvent(
             startedNote,
             startedNote.startTick,
@@ -2294,7 +2564,7 @@ function recordEvent(type, note, instrumentId = bank1.instrument, inputId = note
     }
 }
 
-function recordDrumHit(padId) {
+function recordDrumHit(padId, timestamp = performance.now()) {
     if (!isRecording) return;
     recordingData.push(makeTimelineEvent({
         id: crypto.randomUUID(),
@@ -2304,7 +2574,7 @@ function recordDrumHit(padId) {
         instrumentId: "drumkit",
         padId,
         velocity: 1
-    }, getRecordingTick(), 1));
+    }, getRecordingTick(timestamp), 1));
     rebuildTrackEventRefs();
     renderRibbon();
 }
@@ -2338,7 +2608,12 @@ function loadProject(data, options = {}) {
         decay: Number(instrument.decay ?? compositionData.decay ?? data.decay ?? 0.2),
         sustain: Number(instrument.sustain ?? compositionData.sustain ?? data.sustain ?? 0.6),
         release: Number(instrument.release ?? compositionData.release ?? data.release ?? 1),
-        duration: Number(instrument.duration ?? compositionData.duration ?? data.duration ?? 1)
+        duration: Number(
+            instrument.duration
+            ?? compositionData.duration
+            ?? data.duration
+            ?? DEFAULT_NOTE_GATE_SECONDS
+        )
     };
     bank1 = normalizeBank1(
         compositionData.bank1 || data.bank1,
@@ -2436,19 +2711,48 @@ function importProject(data) {
     recordCompositionTransaction("IMPORT_PROJECT", "Import Project", before);
 }
 
-function noteOn(note, instrumentId = bank1.instrument, inputId = note) {
-    if (!startAudioNote(note, instrumentId, inputId)) return false;
-    recordEvent("noteOn", note, instrumentId, inputId);
+function noteOn(
+    note,
+    instrumentId = bank1.instrument,
+    inputId = note,
+    settings = instrumentSettings,
+    startedAt = performance.now()
+) {
+    if (!startAudioNote(note, instrumentId, inputId, 1, settings, startedAt)) return false;
+    recordEvent("noteOn", note, instrumentId, inputId, startedAt, settings);
     return true;
 }
 
-function noteOff(inputId, note = inputId, instrumentId = bank1.instrument) {
+function finishPerformanceNote(inputId, timestamp) {
     const activeNote = activeNotes.get(inputId);
     if (!activeNote || !releaseAudioNote(inputId)) {
         return false;
     }
-    recordEvent("noteOff", activeNote.note || note, activeNote.instrumentId || instrumentId, inputId);
+    recordEvent(
+        "noteOff",
+        activeNote.note,
+        activeNote.instrumentId,
+        inputId,
+        timestamp
+    );
     return true;
+}
+
+function noteOff(inputId, note = inputId, instrumentId = bank1.instrument, timestamp = performance.now()) {
+    const activeNote = activeNotes.get(inputId);
+    if (!activeNote) return false;
+    const releaseAt = Math.max(timestamp, activeNote.minimumGateAt || timestamp);
+    const delay = releaseAt - performance.now();
+    if (delay > 0) {
+        if (!activeNote.releaseTimer) {
+            activeNote.releaseTimer = setTimeout(
+                () => finishPerformanceNote(inputId, releaseAt),
+                delay
+            );
+        }
+        return true;
+    }
+    return finishPerformanceNote(inputId, releaseAt);
 }
 
 function resolvePerformanceInput(code) {
@@ -2486,26 +2790,79 @@ function resolvePerformanceInput(code) {
 }
 
 function startPerformanceInput(code, inputId) {
-    if (activeKeyboardInputs.has(inputId)) return;
+    const previousInput = activeKeyboardInputs.get(inputId);
+    if (previousInput && !(previousInput.pending && previousInput.releasedAt !== null)) return;
+    if (previousInput) activeKeyboardInputs.delete(inputId);
+
+    const pendingRelease = activeNotes.get(inputId);
+    if (pendingRelease?.releaseTimer) {
+        finishPerformanceNote(inputId, performance.now());
+    }
     const action = resolvePerformanceInput(code);
     if (!action) return;
 
-    const started = action.kind === "drum"
-        ? triggerDrumPad(action.padId)
-        : noteOn(action.note, action.instrumentId, inputId);
-    if (!started) return;
+    const pendingInput = {
+        ...action,
+        pending: true,
+        pressedAt: performance.now(),
+        releasedAt: null,
+        settings: cloneState(instrumentSettings)
+    };
+    activeKeyboardInputs.set(inputId, pendingInput);
 
-    activeKeyboardInputs.set(inputId, action);
-    if (action.kind === "drum") recordDrumHit(action.padId);
-    if (action.key) highlightKey(action.key);
+    const instrumentId = action.kind === "drum" ? "drumkit" : action.instrumentId;
+    ensureAudioStarted()
+        .then(() => prepareInstrumentAssets(instrumentId))
+        .then(() => {
+            if (activeKeyboardInputs.get(inputId) !== pendingInput) return;
+            const started = action.kind === "drum"
+                ? triggerDrumPad(action.padId)
+                : noteOn(
+                    action.note,
+                    action.instrumentId,
+                    inputId,
+                    pendingInput.settings,
+                    pendingInput.pressedAt
+                );
+            if (!started) {
+                activeKeyboardInputs.delete(inputId);
+                return;
+            }
+
+            pendingInput.pending = false;
+            if (action.kind === "drum") {
+                recordDrumHit(action.padId, pendingInput.pressedAt);
+            }
+            if (action.key) highlightKey(action.key);
+
+            if (pendingInput.releasedAt !== null) {
+                activeKeyboardInputs.delete(inputId);
+                if (action.kind === "note") {
+                    noteOff(inputId, action.note, action.instrumentId, pendingInput.releasedAt);
+                } else if (action.kind === "drum" && action.key) {
+                    unhighlightKey(action.key);
+                }
+            }
+        })
+        .catch(error => {
+            if (activeKeyboardInputs.get(inputId) === pendingInput) {
+                activeKeyboardInputs.delete(inputId);
+            }
+            reportAudioFailure(error);
+        });
 }
 
 function releasePerformanceInput(inputId) {
     const action = activeKeyboardInputs.get(inputId);
     if (!action) return;
+    if (action.pending) {
+        action.releasedAt = performance.now();
+        if (action.key) unhighlightKey(action.key);
+        return;
+    }
     activeKeyboardInputs.delete(inputId);
     if (action.kind === "note") {
-        noteOff(inputId, action.note, action.instrumentId);
+        noteOff(inputId, action.note, action.instrumentId, performance.now());
     }
     if (action.key) unhighlightKey(action.key);
 }
@@ -2566,6 +2923,8 @@ if (durationSlider && durationValue) {
 }
 
 function stopPlayback() {
+    playbackPreparationId += 1;
+    isPreparingPlayback = false;
     playbackTimeouts.forEach(id => clearTimeout(id));
     playbackTimeouts = [];
     isPlaying = false;
@@ -3211,6 +3570,7 @@ function setCellActionStatus(message, isError = false) {
 }
 
 recordBtn.addEventListener("click", () => {
+    ensureAudioStarted().catch(reportAudioFailure);
     finishRecording();
     stopPlayback();
     timelineSelectionIds.clear();
@@ -3358,82 +3718,96 @@ loadBtn?.addEventListener("click", () => {
     loadProject(JSON.parse(saved));
 });
 
-playBtn.addEventListener("click", () => {
-    if (!synth || isPlaying) return;
+playBtn.addEventListener("click", async () => {
+    if (isPlaying || isPreparingPlayback) return;
+    const requestId = ++playbackPreparationId;
+    isPreparingPlayback = true;
 
-    finishRecording();
-    if (recordingData.length === 0) return;
+    try {
+        await ensureAudioStarted();
+        if (requestId !== playbackPreparationId) return;
 
-    const soloTracksExist = tracks.some(track => mixerState.tracks[track.id]?.solo);
-    const playableTrackIds = new Set(
-        tracks
-            .filter(track => (
-                !mixerState.tracks[track.id]?.mute
-                && (!soloTracksExist || mixerState.tracks[track.id]?.solo)
-            ))
-            .map(track => track.id)
-    );
-    const playbackEvents = recordingData
-        .filter(event => playableTrackIds.has(event.trackId))
-        .flatMap(event => event.kind === "drum"
-            ? [{ event, type: "drum", tick: getEventTick(event) }]
-            : [
-                { event, type: "noteOn", tick: getEventTick(event) },
-                {
-                    event,
-                    type: "noteOff",
-                    tick: getEventTick(event) + getEventDurationTicks(event)
+        finishRecording();
+        if (recordingData.length === 0) return;
+
+        const soloTracksExist = tracks.some(track => mixerState.tracks[track.id]?.solo);
+        const playableTrackIds = new Set(
+            tracks
+                .filter(track => (
+                    !mixerState.tracks[track.id]?.mute
+                    && (!soloTracksExist || mixerState.tracks[track.id]?.solo)
+                ))
+                .map(track => track.id)
+        );
+        const playableEvents = recordingData.filter(event => playableTrackIds.has(event.trackId));
+        if (playableEvents.length === 0) {
+            setCellActionStatus("No unmuted timeline events are available to play.", true);
+            return;
+        }
+
+        await preparePlaybackAssets(playableEvents);
+        if (requestId !== playbackPreparationId) return;
+
+        const playbackEvents = playableEvents
+            .flatMap(event => event.kind === "drum"
+                ? [{ event, type: "drum", tick: getEventTick(event) }]
+                : [
+                    { event, type: "noteOn", tick: getEventTick(event) },
+                    {
+                        event,
+                        type: "noteOff",
+                        tick: getEventTick(event) + getEventDurationTicks(event)
+                    }
+                ])
+            .sort((a, b) => (
+                a.tick - b.tick
+                || (a.type === b.type ? 0 : a.type === "noteOff" ? -1 : 1)
+            ));
+
+        isPlaying = true;
+        console.log("PLAY");
+        playhead.setRange(0, 100);
+        playhead.start(ticksToMilliseconds(getTimelineLengthTicks()));
+
+        playbackEvents.forEach(({ event, type, tick }, index) => {
+            const timeoutId = setTimeout(() => {
+                const playbackInputId = `playback:${event.id}`;
+                const keyName = type === "drum"
+                    ? BANK1_DRUM_SLOTS.find(slot => slot.id === event.padId)?.keys[0]
+                    : getInputKeyForNote(event.note);
+
+                if (type === "noteOn") {
+                    startAudioNote(
+                        event.note,
+                        event.instrumentId || getTimelineEventInstrument(event),
+                        playbackInputId,
+                        event.velocity,
+                        event
+                    );
+                    if (keyName) highlightKey(keyName);
+                } else if (type === "noteOff") {
+                    releaseAudioNote(playbackInputId, event.release);
+                    if (keyName) unhighlightKey(keyName);
+                } else if (type === "drum") {
+                    triggerDrumPad(event.padId, event.velocity);
+                    if (keyName) highlightKey(keyName);
+                    if (keyName) {
+                        setTimeout(() => unhighlightKey(keyName), 100);
+                    }
                 }
-            ])
-        .sort((a, b) => (
-            a.tick - b.tick
-            || (a.type === b.type ? 0 : a.type === "noteOff" ? -1 : 1)
-        ));
 
-    if (playbackEvents.length === 0) {
-        setCellActionStatus("No unmuted timeline events are available to play.", true);
-        return;
+                if (index === playbackEvents.length - 1) {
+                    isPlaying = false;
+                }
+            }, ticksToMilliseconds(Math.max(0, tick)));
+
+            playbackTimeouts.push(timeoutId);
+        });
+    } catch (error) {
+        reportAudioFailure(error);
+    } finally {
+        if (requestId === playbackPreparationId) isPreparingPlayback = false;
     }
-
-    isPlaying = true;
-    console.log("PLAY");
-    playhead.setRange(0, 100);
-    playhead.start(ticksToMilliseconds(getTimelineLengthTicks()));
-
-    playbackEvents.forEach(({ event, type, tick }, index) => {
-        const timeoutId = setTimeout(() => {
-            const playbackInputId = `playback:${event.id}`;
-            const keyName = type === "drum"
-                ? BANK1_DRUM_SLOTS.find(slot => slot.id === event.padId)?.keys[0]
-                : getInputKeyForNote(event.note);
-
-            if (type === "noteOn") {
-                startAudioNote(
-                    event.note,
-                    event.instrumentId || getTimelineEventInstrument(event),
-                    playbackInputId,
-                    event.velocity,
-                    event
-                );
-                if (keyName) highlightKey(keyName);
-            } else if (type === "noteOff") {
-                releaseAudioNote(playbackInputId, event.release);
-                if (keyName) unhighlightKey(keyName);
-            } else if (type === "drum") {
-                triggerDrumPad(event.padId, event.velocity);
-                if (keyName) highlightKey(keyName);
-                if (keyName) {
-                    setTimeout(() => unhighlightKey(keyName), 100);
-                }
-            }
-
-            if (index === playbackEvents.length - 1) {
-                isPlaying = false;
-            }
-        }, ticksToMilliseconds(Math.max(0, tick)));
-
-        playbackTimeouts.push(timeoutId);
-    });
 });
 
 document.querySelectorAll("[data-key]").forEach(keyElement => {

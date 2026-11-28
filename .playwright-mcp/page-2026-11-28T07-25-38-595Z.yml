@@ -1,0 +1,866 @@
+- generic [active] [ref=f4e1]:
+  - generic [ref=f4e2]:
+    - heading "Synth Instrument Studio V1" [level=1] [ref=f4e3]
+    - generic [ref=f4e4]:
+      - status [ref=f4e5]: Audio starts when you play.
+      - button "Record" [ref=f4e6] [cursor=pointer]
+      - button "Play" [ref=f4e7] [cursor=pointer]
+      - button "Pause" [ref=f4e8] [cursor=pointer]
+      - button "Stop" [ref=f4e9] [cursor=pointer]
+      - button "Undo" [disabled] [ref=f4e10]
+      - button "Redo" [disabled] [ref=f4e11]
+      - button "Load" [ref=f4e12] [cursor=pointer]
+      - button "Import" [ref=f4e13] [cursor=pointer]
+    - heading "Project" [level=2] [ref=f4e14]
+    - generic [ref=f4e15]:
+      - generic [ref=f4e16]: Name
+      - textbox "Name" [ref=f4e17]: Untitled Project
+    - generic [ref=f4e18]:
+      - generic [ref=f4e19]: Description
+      - textbox "Description" [ref=f4e20]
+    - generic [ref=f4e21]:
+      - button "Save" [ref=f4e22] [cursor=pointer]
+      - button "Download" [ref=f4e23] [cursor=pointer]
+      - button "Copy Selected Memory JSON" [ref=f4e24] [cursor=pointer]
+    - generic [ref=f4e25]:
+      - heading "Cell Memory" [level=2] [ref=f4e26]
+      - generic [ref=f4e27]:
+        - button "A Empty" [pressed] [ref=f4e28] [cursor=pointer]
+        - button "B Empty" [ref=f4e29] [cursor=pointer]
+        - button "C Empty" [ref=f4e30] [cursor=pointer]
+        - button "D Empty" [ref=f4e31] [cursor=pointer]
+      - generic [ref=f4e32]:
+        - generic [ref=f4e33]: Save selection to
+        - combobox "Save selection to" [ref=f4e34]:
+          - option "Cell A" [selected]
+          - option "Cell B"
+          - option "Cell C"
+          - option "Cell D"
+        - button "Save Selection to Cell" [ref=f4e35] [cursor=pointer]
+        - generic [ref=f4e36]: Cell name
+        - textbox "Cell name" [ref=f4e37]:
+          - /placeholder: Rename selected Cell
+          - text: A
+        - button "Rename Selected Cell" [ref=f4e38] [cursor=pointer]
+        - generic [ref=f4e39]: Copy from
+        - combobox "Copy from" [ref=f4e40]:
+          - option "Cell A" [selected]
+          - option "Cell B"
+          - option "Cell C"
+          - option "Cell D"
+        - generic [ref=f4e41]: Copy to
+        - combobox "Copy to" [ref=f4e42]:
+          - option "Cell A"
+          - option "Cell B" [selected]
+          - option "Cell C"
+          - option "Cell D"
+        - button "Copy Memory" [ref=f4e43] [cursor=pointer]
+        - generic [ref=f4e44]: Destination start tick
+        - spinbutton "Destination start tick" [ref=f4e45]: "0"
+        - button "Paste Memory to Timeline" [ref=f4e46] [cursor=pointer]
+        - generic [ref=f4e47]: Repeat count
+        - spinbutton "Repeat count" [ref=f4e48]: "4"
+        - button "Repeat Cell on Timeline" [ref=f4e49] [cursor=pointer]
+        - button "Move Timeline Selection" [ref=f4e50] [cursor=pointer]
+        - button "Delete Timeline Selection" [ref=f4e51] [cursor=pointer]
+        - button "Clear Selected Memory" [ref=f4e52] [cursor=pointer]
+        - status [ref=f4e53]
+    - region "Mixer" [ref=f4e54]:
+      - heading "Mixer" [level=2] [ref=f4e55]
+      - generic [ref=f4e56]:
+        - generic [ref=f4e57]:
+          - heading "MASTER" [level=3] [ref=f4e58]
+          - generic [ref=f4e59]:
+            - generic [ref=f4e60]: Volume
+            - slider "Volume" [ref=f4e61]: "55.6"
+            - status [ref=f4e62]: "-30.0 dBFS"
+        - generic [ref=f4e63]:
+          - heading "LEAD" [level=3] [ref=f4e64]
+          - generic [ref=f4e65]:
+            - generic [ref=f4e66]: Volume
+            - slider "Volume" [ref=f4e67]: "1"
+            - status [ref=f4e68]: 100%
+          - generic [ref=f4e69]:
+            - generic [ref=f4e70]: Pan
+            - slider "Pan" [ref=f4e71]: "0"
+            - status [ref=f4e72]: C
+          - button "Mute" [ref=f4e73] [cursor=pointer]
+          - button "Solo" [ref=f4e74] [cursor=pointer]
+    - generic [ref=f4e75]: "BANK 1 (SINE): Q=C4 2=C#4 W=D4 3=D#4 E=E4 R=F4 5=F#4 T=G4 6=G#4 Y=A4 7=A#4 U=B4 BANK 2 (SINE): I=C3 9=C#3 O=D3 0=D#3 P=E3 [=F3 ==F#3 ]=G3 A=G#3 Z=A3 S=A#3 X=B3 BANK 3 (SINE): C=C4 F=C#4 V=D4 G=D#4 B=E4 N=F4 J=F#4 M=G4 K=G#4 ,=A4 L=A#4 .=B4"
+    - region "Bank 1" [ref=f4e76]:
+      - heading "Bank 1" [level=2] [ref=f4e77]
+      - generic [ref=f4e78]:
+        - generic [ref=f4e79]: Instrument
+        - combobox "Instrument" [ref=f4e80]:
+          - option "Sine" [selected]
+          - option "Square"
+          - option "Saw"
+          - option "Triangle"
+          - option "Noise"
+          - option "Fingerstyle Bass"
+          - option "Clean Electric Guitar"
+          - option "Drum Kit"
+      - generic [ref=f4e81]:
+        - generic [ref=f4e82]: Octave
+        - button "Lower Bank 1 octave" [ref=f4e83] [cursor=pointer]: "-"
+        - status [ref=f4e84]: "4"
+        - button "Raise Bank 1 octave" [ref=f4e85] [cursor=pointer]: +
+        - generic [ref=f4e86]: C4-B4
+      - generic [ref=f4e87]:
+        - checkbox "Couple Banks 1-3 (Bank 1 controls all)" [ref=f4e88]
+        - text: Couple Banks 1-3 (Bank 1 controls all)
+      - generic [ref=f4e89]:
+        - generic [ref=f4e90]:
+          - generic [ref=f4e91]: Pad 01 (W)
+          - combobox "Pad 01 (W)" [ref=f4e92]:
+            - option "Acoustic Bass Drum"
+            - option "Bass Drum 1"
+            - option "Side Stick"
+            - option "Acoustic Snare"
+            - option "Hand Clap"
+            - option "Electric Snare"
+            - option "Low Floor Tom"
+            - option "Closed Hi-Hat"
+            - option "High Floor Tom"
+            - option "Pedal Hi-Hat"
+            - option "Low Tom"
+            - option "Open Hi-Hat" [selected]
+            - option "Low-Mid Tom"
+            - option "High-Mid Tom"
+            - option "Crash Cymbal 1"
+            - option "High Tom"
+            - option "Ride Cymbal 1"
+            - option "Chinese Cymbal"
+            - option "Ride Bell"
+            - option "Tambourine"
+            - option "Splash Cymbal"
+            - option "Cowbell"
+            - option "Crash Cymbal 2"
+            - option "Vibraslap"
+            - option "Ride Cymbal 2"
+            - option "High Bongo"
+            - option "Low Bongo"
+            - option "Mute High Conga"
+            - option "Open High Conga"
+            - option "Low Conga"
+            - option "High Timbale"
+            - option "Low Timbale"
+            - option "High Agogo"
+            - option "Low Agogo"
+            - option "Cabasa"
+            - option "Maracas"
+            - option "Short Whistle"
+            - option "Long Whistle"
+            - option "Short Guiro"
+            - option "Long Guiro"
+            - option "Claves"
+            - option "High Wood Block"
+            - option "Low Wood Block"
+            - option "Mute Cuica"
+            - option "Open Cuica"
+            - option "Mute Triangle"
+            - option "Open Triangle"
+            - option "Shaker"
+            - option "Jingle Bell"
+            - option "Bell Tree"
+        - generic [ref=f4e93]:
+          - generic [ref=f4e94]: Pad 02 (S)
+          - combobox "Pad 02 (S)" [ref=f4e95]:
+            - option "Acoustic Bass Drum"
+            - option "Bass Drum 1"
+            - option "Side Stick"
+            - option "Acoustic Snare"
+            - option "Hand Clap"
+            - option "Electric Snare"
+            - option "Low Floor Tom"
+            - option "Closed Hi-Hat" [selected]
+            - option "High Floor Tom"
+            - option "Pedal Hi-Hat"
+            - option "Low Tom"
+            - option "Open Hi-Hat"
+            - option "Low-Mid Tom"
+            - option "High-Mid Tom"
+            - option "Crash Cymbal 1"
+            - option "High Tom"
+            - option "Ride Cymbal 1"
+            - option "Chinese Cymbal"
+            - option "Ride Bell"
+            - option "Tambourine"
+            - option "Splash Cymbal"
+            - option "Cowbell"
+            - option "Crash Cymbal 2"
+            - option "Vibraslap"
+            - option "Ride Cymbal 2"
+            - option "High Bongo"
+            - option "Low Bongo"
+            - option "Mute High Conga"
+            - option "Open High Conga"
+            - option "Low Conga"
+            - option "High Timbale"
+            - option "Low Timbale"
+            - option "High Agogo"
+            - option "Low Agogo"
+            - option "Cabasa"
+            - option "Maracas"
+            - option "Short Whistle"
+            - option "Long Whistle"
+            - option "Short Guiro"
+            - option "Long Guiro"
+            - option "Claves"
+            - option "High Wood Block"
+            - option "Low Wood Block"
+            - option "Mute Cuica"
+            - option "Open Cuica"
+            - option "Mute Triangle"
+            - option "Open Triangle"
+            - option "Shaker"
+            - option "Jingle Bell"
+            - option "Bell Tree"
+        - generic [ref=f4e96]:
+          - generic [ref=f4e97]: Pad 03 (E)
+          - combobox "Pad 03 (E)" [ref=f4e98]:
+            - option "Acoustic Bass Drum"
+            - option "Bass Drum 1"
+            - option "Side Stick"
+            - option "Acoustic Snare"
+            - option "Hand Clap"
+            - option "Electric Snare"
+            - option "Low Floor Tom"
+            - option "Closed Hi-Hat"
+            - option "High Floor Tom"
+            - option "Pedal Hi-Hat"
+            - option "Low Tom"
+            - option "Open Hi-Hat"
+            - option "Low-Mid Tom"
+            - option "High-Mid Tom"
+            - option "Crash Cymbal 1"
+            - option "High Tom"
+            - option "Ride Cymbal 1"
+            - option "Chinese Cymbal"
+            - option "Ride Bell"
+            - option "Tambourine"
+            - option "Splash Cymbal"
+            - option "Cowbell" [selected]
+            - option "Crash Cymbal 2"
+            - option "Vibraslap"
+            - option "Ride Cymbal 2"
+            - option "High Bongo"
+            - option "Low Bongo"
+            - option "Mute High Conga"
+            - option "Open High Conga"
+            - option "Low Conga"
+            - option "High Timbale"
+            - option "Low Timbale"
+            - option "High Agogo"
+            - option "Low Agogo"
+            - option "Cabasa"
+            - option "Maracas"
+            - option "Short Whistle"
+            - option "Long Whistle"
+            - option "Short Guiro"
+            - option "Long Guiro"
+            - option "Claves"
+            - option "High Wood Block"
+            - option "Low Wood Block"
+            - option "Mute Cuica"
+            - option "Open Cuica"
+            - option "Mute Triangle"
+            - option "Open Triangle"
+            - option "Shaker"
+            - option "Jingle Bell"
+            - option "Bell Tree"
+        - generic [ref=f4e99]:
+          - generic [ref=f4e100]: Pad 04 (3)
+          - combobox "Pad 04 (3)" [ref=f4e101]:
+            - option "Acoustic Bass Drum"
+            - option "Bass Drum 1"
+            - option "Side Stick"
+            - option "Acoustic Snare"
+            - option "Hand Clap"
+            - option "Electric Snare"
+            - option "Low Floor Tom"
+            - option "Closed Hi-Hat"
+            - option "High Floor Tom"
+            - option "Pedal Hi-Hat"
+            - option "Low Tom"
+            - option "Open Hi-Hat"
+            - option "Low-Mid Tom"
+            - option "High-Mid Tom"
+            - option "Crash Cymbal 1"
+            - option "High Tom"
+            - option "Ride Cymbal 1" [selected]
+            - option "Chinese Cymbal"
+            - option "Ride Bell"
+            - option "Tambourine"
+            - option "Splash Cymbal"
+            - option "Cowbell"
+            - option "Crash Cymbal 2"
+            - option "Vibraslap"
+            - option "Ride Cymbal 2"
+            - option "High Bongo"
+            - option "Low Bongo"
+            - option "Mute High Conga"
+            - option "Open High Conga"
+            - option "Low Conga"
+            - option "High Timbale"
+            - option "Low Timbale"
+            - option "High Agogo"
+            - option "Low Agogo"
+            - option "Cabasa"
+            - option "Maracas"
+            - option "Short Whistle"
+            - option "Long Whistle"
+            - option "Short Guiro"
+            - option "Long Guiro"
+            - option "Claves"
+            - option "High Wood Block"
+            - option "Low Wood Block"
+            - option "Mute Cuica"
+            - option "Open Cuica"
+            - option "Mute Triangle"
+            - option "Open Triangle"
+            - option "Shaker"
+            - option "Jingle Bell"
+            - option "Bell Tree"
+        - generic [ref=f4e102]:
+          - generic [ref=f4e103]: Pad 05 (R)
+          - combobox "Pad 05 (R)" [ref=f4e104]:
+            - option "Acoustic Bass Drum"
+            - option "Bass Drum 1"
+            - option "Side Stick"
+            - option "Acoustic Snare"
+            - option "Hand Clap"
+            - option "Electric Snare"
+            - option "Low Floor Tom"
+            - option "Closed Hi-Hat"
+            - option "High Floor Tom"
+            - option "Pedal Hi-Hat"
+            - option "Low Tom"
+            - option "Open Hi-Hat"
+            - option "Low-Mid Tom"
+            - option "High-Mid Tom"
+            - option "Crash Cymbal 1"
+            - option "High Tom" [selected]
+            - option "Ride Cymbal 1"
+            - option "Chinese Cymbal"
+            - option "Ride Bell"
+            - option "Tambourine"
+            - option "Splash Cymbal"
+            - option "Cowbell"
+            - option "Crash Cymbal 2"
+            - option "Vibraslap"
+            - option "Ride Cymbal 2"
+            - option "High Bongo"
+            - option "Low Bongo"
+            - option "Mute High Conga"
+            - option "Open High Conga"
+            - option "Low Conga"
+            - option "High Timbale"
+            - option "Low Timbale"
+            - option "High Agogo"
+            - option "Low Agogo"
+            - option "Cabasa"
+            - option "Maracas"
+            - option "Short Whistle"
+            - option "Long Whistle"
+            - option "Short Guiro"
+            - option "Long Guiro"
+            - option "Claves"
+            - option "High Wood Block"
+            - option "Low Wood Block"
+            - option "Mute Cuica"
+            - option "Open Cuica"
+            - option "Mute Triangle"
+            - option "Open Triangle"
+            - option "Shaker"
+            - option "Jingle Bell"
+            - option "Bell Tree"
+        - generic [ref=f4e105]:
+          - generic [ref=f4e106]: Pad 06 (T)
+          - combobox "Pad 06 (T)" [ref=f4e107]:
+            - option "Acoustic Bass Drum"
+            - option "Bass Drum 1"
+            - option "Side Stick"
+            - option "Acoustic Snare"
+            - option "Hand Clap"
+            - option "Electric Snare"
+            - option "Low Floor Tom"
+            - option "Closed Hi-Hat"
+            - option "High Floor Tom"
+            - option "Pedal Hi-Hat"
+            - option "Low Tom"
+            - option "Open Hi-Hat"
+            - option "Low-Mid Tom" [selected]
+            - option "High-Mid Tom"
+            - option "Crash Cymbal 1"
+            - option "High Tom"
+            - option "Ride Cymbal 1"
+            - option "Chinese Cymbal"
+            - option "Ride Bell"
+            - option "Tambourine"
+            - option "Splash Cymbal"
+            - option "Cowbell"
+            - option "Crash Cymbal 2"
+            - option "Vibraslap"
+            - option "Ride Cymbal 2"
+            - option "High Bongo"
+            - option "Low Bongo"
+            - option "Mute High Conga"
+            - option "Open High Conga"
+            - option "Low Conga"
+            - option "High Timbale"
+            - option "Low Timbale"
+            - option "High Agogo"
+            - option "Low Agogo"
+            - option "Cabasa"
+            - option "Maracas"
+            - option "Short Whistle"
+            - option "Long Whistle"
+            - option "Short Guiro"
+            - option "Long Guiro"
+            - option "Claves"
+            - option "High Wood Block"
+            - option "Low Wood Block"
+            - option "Mute Cuica"
+            - option "Open Cuica"
+            - option "Mute Triangle"
+            - option "Open Triangle"
+            - option "Shaker"
+            - option "Jingle Bell"
+            - option "Bell Tree"
+        - generic [ref=f4e108]:
+          - generic [ref=f4e109]: Pad 07 (Y)
+          - combobox "Pad 07 (Y)" [ref=f4e110]:
+            - option "Acoustic Bass Drum"
+            - option "Bass Drum 1"
+            - option "Side Stick"
+            - option "Acoustic Snare"
+            - option "Hand Clap"
+            - option "Electric Snare"
+            - option "Low Floor Tom"
+            - option "Closed Hi-Hat"
+            - option "High Floor Tom"
+            - option "Pedal Hi-Hat"
+            - option "Low Tom" [selected]
+            - option "Open Hi-Hat"
+            - option "Low-Mid Tom"
+            - option "High-Mid Tom"
+            - option "Crash Cymbal 1"
+            - option "High Tom"
+            - option "Ride Cymbal 1"
+            - option "Chinese Cymbal"
+            - option "Ride Bell"
+            - option "Tambourine"
+            - option "Splash Cymbal"
+            - option "Cowbell"
+            - option "Crash Cymbal 2"
+            - option "Vibraslap"
+            - option "Ride Cymbal 2"
+            - option "High Bongo"
+            - option "Low Bongo"
+            - option "Mute High Conga"
+            - option "Open High Conga"
+            - option "Low Conga"
+            - option "High Timbale"
+            - option "Low Timbale"
+            - option "High Agogo"
+            - option "Low Agogo"
+            - option "Cabasa"
+            - option "Maracas"
+            - option "Short Whistle"
+            - option "Long Whistle"
+            - option "Short Guiro"
+            - option "Long Guiro"
+            - option "Claves"
+            - option "High Wood Block"
+            - option "Low Wood Block"
+            - option "Mute Cuica"
+            - option "Open Cuica"
+            - option "Mute Triangle"
+            - option "Open Triangle"
+            - option "Shaker"
+            - option "Jingle Bell"
+            - option "Bell Tree"
+        - generic [ref=f4e111]:
+          - generic [ref=f4e112]: Pad 08 (7)
+          - combobox "Pad 08 (7)" [ref=f4e113]:
+            - option "Acoustic Bass Drum"
+            - option "Bass Drum 1"
+            - option "Side Stick"
+            - option "Acoustic Snare"
+            - option "Hand Clap"
+            - option "Electric Snare"
+            - option "Low Floor Tom"
+            - option "Closed Hi-Hat"
+            - option "High Floor Tom"
+            - option "Pedal Hi-Hat"
+            - option "Low Tom"
+            - option "Open Hi-Hat"
+            - option "Low-Mid Tom"
+            - option "High-Mid Tom"
+            - option "Crash Cymbal 1" [selected]
+            - option "High Tom"
+            - option "Ride Cymbal 1"
+            - option "Chinese Cymbal"
+            - option "Ride Bell"
+            - option "Tambourine"
+            - option "Splash Cymbal"
+            - option "Cowbell"
+            - option "Crash Cymbal 2"
+            - option "Vibraslap"
+            - option "Ride Cymbal 2"
+            - option "High Bongo"
+            - option "Low Bongo"
+            - option "Mute High Conga"
+            - option "Open High Conga"
+            - option "Low Conga"
+            - option "High Timbale"
+            - option "Low Timbale"
+            - option "High Agogo"
+            - option "Low Agogo"
+            - option "Cabasa"
+            - option "Maracas"
+            - option "Short Whistle"
+            - option "Long Whistle"
+            - option "Short Guiro"
+            - option "Long Guiro"
+            - option "Claves"
+            - option "High Wood Block"
+            - option "Low Wood Block"
+            - option "Mute Cuica"
+            - option "Open Cuica"
+            - option "Mute Triangle"
+            - option "Open Triangle"
+            - option "Shaker"
+            - option "Jingle Bell"
+            - option "Bell Tree"
+        - generic [ref=f4e114]:
+          - generic [ref=f4e115]: Pad 09 (D)
+          - combobox "Pad 09 (D)" [ref=f4e116]:
+            - option "Acoustic Bass Drum"
+            - option "Bass Drum 1"
+            - option "Side Stick"
+            - option "Acoustic Snare" [selected]
+            - option "Hand Clap"
+            - option "Electric Snare"
+            - option "Low Floor Tom"
+            - option "Closed Hi-Hat"
+            - option "High Floor Tom"
+            - option "Pedal Hi-Hat"
+            - option "Low Tom"
+            - option "Open Hi-Hat"
+            - option "Low-Mid Tom"
+            - option "High-Mid Tom"
+            - option "Crash Cymbal 1"
+            - option "High Tom"
+            - option "Ride Cymbal 1"
+            - option "Chinese Cymbal"
+            - option "Ride Bell"
+            - option "Tambourine"
+            - option "Splash Cymbal"
+            - option "Cowbell"
+            - option "Crash Cymbal 2"
+            - option "Vibraslap"
+            - option "Ride Cymbal 2"
+            - option "High Bongo"
+            - option "Low Bongo"
+            - option "Mute High Conga"
+            - option "Open High Conga"
+            - option "Low Conga"
+            - option "High Timbale"
+            - option "Low Timbale"
+            - option "High Agogo"
+            - option "Low Agogo"
+            - option "Cabasa"
+            - option "Maracas"
+            - option "Short Whistle"
+            - option "Long Whistle"
+            - option "Short Guiro"
+            - option "Long Guiro"
+            - option "Claves"
+            - option "High Wood Block"
+            - option "Low Wood Block"
+            - option "Mute Cuica"
+            - option "Open Cuica"
+            - option "Mute Triangle"
+            - option "Open Triangle"
+            - option "Shaker"
+            - option "Jingle Bell"
+            - option "Bell Tree"
+        - generic [ref=f4e117]:
+          - generic [ref=f4e118]: Pad 10 (F)
+          - combobox "Pad 10 (F)" [ref=f4e119]:
+            - option "Acoustic Bass Drum"
+            - option "Bass Drum 1"
+            - option "Side Stick" [selected]
+            - option "Acoustic Snare"
+            - option "Hand Clap"
+            - option "Electric Snare"
+            - option "Low Floor Tom"
+            - option "Closed Hi-Hat"
+            - option "High Floor Tom"
+            - option "Pedal Hi-Hat"
+            - option "Low Tom"
+            - option "Open Hi-Hat"
+            - option "Low-Mid Tom"
+            - option "High-Mid Tom"
+            - option "Crash Cymbal 1"
+            - option "High Tom"
+            - option "Ride Cymbal 1"
+            - option "Chinese Cymbal"
+            - option "Ride Bell"
+            - option "Tambourine"
+            - option "Splash Cymbal"
+            - option "Cowbell"
+            - option "Crash Cymbal 2"
+            - option "Vibraslap"
+            - option "Ride Cymbal 2"
+            - option "High Bongo"
+            - option "Low Bongo"
+            - option "Mute High Conga"
+            - option "Open High Conga"
+            - option "Low Conga"
+            - option "High Timbale"
+            - option "Low Timbale"
+            - option "High Agogo"
+            - option "Low Agogo"
+            - option "Cabasa"
+            - option "Maracas"
+            - option "Short Whistle"
+            - option "Long Whistle"
+            - option "Short Guiro"
+            - option "Long Guiro"
+            - option "Claves"
+            - option "High Wood Block"
+            - option "Low Wood Block"
+            - option "Mute Cuica"
+            - option "Open Cuica"
+            - option "Mute Triangle"
+            - option "Open Triangle"
+            - option "Shaker"
+            - option "Jingle Bell"
+            - option "Bell Tree"
+        - generic [ref=f4e120]:
+          - generic [ref=f4e121]: Pad 11 (H)
+          - combobox "Pad 11 (H)" [ref=f4e122]:
+            - option "Acoustic Bass Drum"
+            - option "Bass Drum 1"
+            - option "Side Stick"
+            - option "Acoustic Snare"
+            - option "Hand Clap"
+            - option "Electric Snare"
+            - option "Low Floor Tom" [selected]
+            - option "Closed Hi-Hat"
+            - option "High Floor Tom"
+            - option "Pedal Hi-Hat"
+            - option "Low Tom"
+            - option "Open Hi-Hat"
+            - option "Low-Mid Tom"
+            - option "High-Mid Tom"
+            - option "Crash Cymbal 1"
+            - option "High Tom"
+            - option "Ride Cymbal 1"
+            - option "Chinese Cymbal"
+            - option "Ride Bell"
+            - option "Tambourine"
+            - option "Splash Cymbal"
+            - option "Cowbell"
+            - option "Crash Cymbal 2"
+            - option "Vibraslap"
+            - option "Ride Cymbal 2"
+            - option "High Bongo"
+            - option "Low Bongo"
+            - option "Mute High Conga"
+            - option "Open High Conga"
+            - option "Low Conga"
+            - option "High Timbale"
+            - option "Low Timbale"
+            - option "High Agogo"
+            - option "Low Agogo"
+            - option "Cabasa"
+            - option "Maracas"
+            - option "Short Whistle"
+            - option "Long Whistle"
+            - option "Short Guiro"
+            - option "Long Guiro"
+            - option "Claves"
+            - option "High Wood Block"
+            - option "Low Wood Block"
+            - option "Mute Cuica"
+            - option "Open Cuica"
+            - option "Mute Triangle"
+            - option "Open Triangle"
+            - option "Shaker"
+            - option "Jingle Bell"
+            - option "Bell Tree"
+        - generic [ref=f4e123]:
+          - generic [ref=f4e124]: Pad 12 (V/B)
+          - combobox "Pad 12 (V/B)" [ref=f4e125]:
+            - option "Acoustic Bass Drum"
+            - option "Bass Drum 1" [selected]
+            - option "Side Stick"
+            - option "Acoustic Snare"
+            - option "Hand Clap"
+            - option "Electric Snare"
+            - option "Low Floor Tom"
+            - option "Closed Hi-Hat"
+            - option "High Floor Tom"
+            - option "Pedal Hi-Hat"
+            - option "Low Tom"
+            - option "Open Hi-Hat"
+            - option "Low-Mid Tom"
+            - option "High-Mid Tom"
+            - option "Crash Cymbal 1"
+            - option "High Tom"
+            - option "Ride Cymbal 1"
+            - option "Chinese Cymbal"
+            - option "Ride Bell"
+            - option "Tambourine"
+            - option "Splash Cymbal"
+            - option "Cowbell"
+            - option "Crash Cymbal 2"
+            - option "Vibraslap"
+            - option "Ride Cymbal 2"
+            - option "High Bongo"
+            - option "Low Bongo"
+            - option "Mute High Conga"
+            - option "Open High Conga"
+            - option "Low Conga"
+            - option "High Timbale"
+            - option "Low Timbale"
+            - option "High Agogo"
+            - option "Low Agogo"
+            - option "Cabasa"
+            - option "Maracas"
+            - option "Short Whistle"
+            - option "Long Whistle"
+            - option "Short Guiro"
+            - option "Long Guiro"
+            - option "Claves"
+            - option "High Wood Block"
+            - option "Low Wood Block"
+            - option "Mute Cuica"
+            - option "Open Cuica"
+            - option "Mute Triangle"
+            - option "Open Triangle"
+            - option "Shaker"
+            - option "Jingle Bell"
+            - option "Bell Tree"
+    - region "Banks 2/3 — Linked 24-Key Range" [ref=f4e126]:
+      - heading "Banks 2/3 — Linked 24-Key Range" [level=2] [ref=f4e127]
+      - generic [ref=f4e128]:
+        - generic [ref=f4e129]: Instrument
+        - combobox "Instrument" [ref=f4e130]:
+          - option "Sine" [selected]
+          - option "Square"
+          - option "Saw"
+          - option "Triangle"
+          - option "Noise"
+          - option "Fingerstyle Bass"
+          - option "Clean Electric Guitar"
+      - generic [ref=f4e131]:
+        - generic [ref=f4e132]: Octave
+        - button "Lower Banks 2 and 3 octave" [ref=f4e133] [cursor=pointer]: "-"
+        - status [ref=f4e134]: "3"
+        - button "Raise Banks 2 and 3 octave" [ref=f4e135] [cursor=pointer]: +
+        - generic [ref=f4e136]: C3-B4
+    - generic [ref=f4e137]:
+      - generic [ref=f4e138]: Duration
+      - slider "Duration" [ref=f4e139]: "0.18"
+      - generic [ref=f4e140]: "0.18"
+    - generic [ref=f4e141]:
+      - generic [ref=f4e142]: Attack
+      - slider "Attack" [ref=f4e143]: "0.05"
+      - generic [ref=f4e144]: "0.05"
+    - generic [ref=f4e145]:
+      - generic [ref=f4e146]: Decay
+      - slider "Decay" [ref=f4e147]: "0.2"
+      - generic [ref=f4e148]: "0.2"
+    - generic [ref=f4e149]:
+      - generic [ref=f4e150]: Sustain
+      - slider "Sustain" [ref=f4e151]: "0.6"
+      - generic [ref=f4e152]: "0.6"
+    - generic [ref=f4e153]:
+      - generic [ref=f4e154]: Release
+      - slider "Release" [ref=f4e155]: "1"
+      - generic [ref=f4e156]: "1"
+    - heading "Timing Ribbon" [level=2] [ref=f4e157]
+    - generic [ref=f4e158]:
+      - generic: "1"
+      - generic: "2"
+      - generic: "3"
+      - generic: "4"
+      - generic [ref=f4e159]:
+        - generic: B4
+        - generic: A#4
+        - generic: A4
+        - generic: G#4
+        - generic: G4
+        - generic: F#4
+        - generic: F4
+        - generic: E4
+        - generic: D#4
+        - generic: D4
+        - generic: C#4
+        - generic: C4
+        - generic: B3
+        - generic: A#3
+        - generic: A3
+        - generic: G#3
+        - generic: G3
+        - generic: F#3
+        - generic: F3
+        - generic: E3
+        - generic: D#3
+        - generic: D3
+        - generic: C#3
+        - generic: C3
+  - generic "36-key performance keyboard" [ref=f4e160]:
+    - region "Bank 1" [ref=f4e161]:
+      - heading "Bank 1" [level=3] [ref=f4e162]
+      - generic [ref=f4e163]:
+        - button "2" [ref=f4e164] [cursor=pointer]
+        - button "3" [ref=f4e165] [cursor=pointer]
+        - button "5" [ref=f4e167] [cursor=pointer]
+        - button "6" [ref=f4e168] [cursor=pointer]
+        - button "7" [ref=f4e169] [cursor=pointer]
+      - generic [ref=f4e170]:
+        - button "Q" [ref=f4e171] [cursor=pointer]
+        - button "W" [ref=f4e172] [cursor=pointer]
+        - button "E" [ref=f4e173] [cursor=pointer]
+        - button "R" [ref=f4e174] [cursor=pointer]
+        - button "T" [ref=f4e175] [cursor=pointer]
+        - button "Y" [ref=f4e176] [cursor=pointer]
+        - button "U" [ref=f4e177] [cursor=pointer]
+    - region "Bank 2" [ref=f4e178]:
+      - heading "Bank 2" [level=3] [ref=f4e179]
+      - generic [ref=f4e180]:
+        - button "9" [ref=f4e181] [cursor=pointer]
+        - button "0" [ref=f4e182] [cursor=pointer]
+        - button "=" [ref=f4e184] [cursor=pointer]
+        - button "]" [ref=f4e185] [cursor=pointer]
+        - button "Z" [ref=f4e186] [cursor=pointer]
+      - generic [ref=f4e187]:
+        - button "I" [ref=f4e188] [cursor=pointer]
+        - button "O" [ref=f4e189] [cursor=pointer]
+        - button "P" [ref=f4e190] [cursor=pointer]
+        - button "[" [ref=f4e191] [cursor=pointer]
+        - button "A" [ref=f4e192] [cursor=pointer]
+        - button "S" [ref=f4e193] [cursor=pointer]
+        - button "X" [ref=f4e194] [cursor=pointer]
+    - region "Bank 3" [ref=f4e195]:
+      - heading "Bank 3" [level=3] [ref=f4e196]
+      - generic [ref=f4e197]:
+        - button "F" [ref=f4e198] [cursor=pointer]
+        - button "G" [ref=f4e199] [cursor=pointer]
+        - button "J" [ref=f4e201] [cursor=pointer]
+        - button "K" [ref=f4e202] [cursor=pointer]
+        - button "L" [ref=f4e203] [cursor=pointer]
+      - generic [ref=f4e204]:
+        - button "C" [ref=f4e205] [cursor=pointer]
+        - button "V" [ref=f4e206] [cursor=pointer]
+        - button "B" [ref=f4e207] [cursor=pointer]
+        - button "N" [ref=f4e208] [cursor=pointer]
+        - button "M" [ref=f4e209] [cursor=pointer]
+        - button "," [ref=f4e210] [cursor=pointer]
+        - button "." [ref=f4e211] [cursor=pointer]
